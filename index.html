@@ -1,0 +1,551 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Orange Roulette</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=JetBrains+Mono:wght@300;400;600&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg: #0a0a0a;
+            --fg: #e8e4dc;
+            --muted: #5a5a5a;
+            --accent: #ff6b35;
+            --danger: #dc2626;
+            --card: #141414;
+            --border: #2a2a2a;
+            --gold: #d4a574;
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            font-family: 'JetBrains Mono', monospace;
+            background: var(--bg);
+            color: var(--fg);
+            min-height: 100vh;
+            overflow-x: hidden;
+        }
+
+        .font-display { font-family: 'Bebas Neue', sans-serif; }
+
+        .bg-atmosphere {
+            position: fixed; inset: 0;
+            background: 
+                radial-gradient(ellipse at 20% 20%, rgba(255, 107, 53, 0.03) 0%, transparent 50%),
+                radial-gradient(ellipse at 80% 80%, rgba(220, 38, 38, 0.03) 0%, transparent 50%),
+                linear-gradient(180deg, #0a0a0a 0%, #0d0808 50%, #0a0a0a 100%);
+            pointer-events: none; z-index: -1;
+        }
+
+        .noise-overlay {
+            position: fixed; inset: 0; opacity: 0.03;
+            background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)'/%3E%3C/svg%3E");
+            pointer-events: none; z-index: 100;
+        }
+
+        .chamber-container { position: relative; width: 280px; height: 280px; }
+
+        .chamber {
+            width: 100%; height: 100%; border-radius: 50%;
+            background: radial-gradient(circle at 30% 30%, #3a3a3a 0%, #1a1a1a 50%, #0a0a0a 100%);
+            box-shadow: 0 0 60px rgba(0, 0, 0, 0.8), inset 0 0 40px rgba(0, 0, 0, 0.6), 0 0 100px rgba(255, 107, 53, 0.1);
+            display: flex; align-items: center; justify-content: center;
+        }
+
+        .chamber-inner {
+            width: 85%; height: 85%; border-radius: 50%;
+            background: radial-gradient(circle at 40% 40%, #2a2a2a 0%, #0f0f0f 100%);
+            box-shadow: inset 0 0 30px rgba(0, 0, 0, 0.8);
+            display: flex; align-items: center; justify-content: center;
+            transition: transform 0.8s cubic-bezier(0.17, 0.67, 0.12, 0.99);
+            position: relative;
+        }
+
+        .bullet-hole {
+            width: 40px; height: 40px; border-radius: 50%;
+            background: radial-gradient(circle, #000 0%, #1a1a1a 70%, #333 100%);
+            box-shadow: inset 0 0 10px rgba(0,0,0,0.9);
+            position: absolute; top: 50%; left: 50%;
+            transform: translate(-50%, -50%); opacity: 0; z-index: 10;
+        }
+        .bullet-hole.visible { opacity: 1; }
+
+        .chamber-slot {
+            position: absolute; width: 28px; height: 28px; border-radius: 50%;
+            background: #1a1a1a; border: 1px solid #333;
+            transition: background 0.3s, box-shadow 0.3s;
+        }
+        .chamber-slot.active { background: var(--danger); box-shadow: 0 0 15px var(--danger); }
+
+        .fire-btn {
+            width: 140px; height: 140px; border-radius: 50%;
+            background: linear-gradient(145deg, #1f1f1f, #151515);
+            border: 2px solid #333; cursor: pointer;
+            transition: all 0.2s ease;
+            display: flex; align-items: center; justify-content: center;
+            position: relative;
+            flex-direction: column;
+            gap: 5px;
+        }
+        
+        .fire-btn.enabled:hover {
+            transform: scale(1.05); border-color: var(--danger);
+            box-shadow: 0 0 30px rgba(220, 38, 38, 0.3);
+        }
+        .fire-btn.enabled:active { transform: scale(0.95); }
+        
+        .fire-btn.waiting {
+            cursor: not-allowed;
+            border-color: var(--muted);
+            opacity: 0.7;
+        }
+
+        .fire-btn svg { width: 40px; height: 40px; }
+        
+        .btn-text {
+            font-family: 'Bebas Neue', sans-serif;
+            font-size: 1.2rem;
+            letter-spacing: 2px;
+        }
+
+        .character { position: relative; transition: all 0.5s ease; }
+        .character.dead { opacity: 0.3; transform: rotate(-5deg); }
+        .character.alive::after {
+            content: ''; position: absolute; bottom: -10px; left: 50%;
+            transform: translateX(-50%); width: 8px; height: 8px;
+            background: #22c55e; border-radius: 50%; box-shadow: 0 0 10px #22c55e;
+        }
+
+        .stat-bar { height: 4px; background: var(--border); border-radius: 2px; overflow: hidden; }
+        .stat-fill { height: 100%; background: var(--accent); transition: width 0.5s ease; }
+
+        @keyframes flash {
+            0% { opacity: 0; } 50% { opacity: 1; } 100% { opacity: 0; }
+        }
+        .flash-overlay {
+            position: fixed; inset: 0; background: var(--danger);
+            opacity: 0; pointer-events: none; z-index: 50;
+        }
+        .flash-overlay.active { animation: flash 0.3s ease-out; }
+
+        @keyframes shake {
+            0%, 100% { transform: translateX(0); }
+            10%, 30%, 50%, 70%, 90% { transform: translateX(-5px); }
+            20%, 40%, 60%, 80% { transform: translateX(5px); }
+        }
+        .shake { animation: shake 0.5s ease-in-out; }
+
+        @keyframes fadeInUp {
+            from { opacity: 0; transform: translateY(30px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        .animate-in { animation: fadeInUp 0.6s ease-out forwards; }
+        
+        @media (prefers-reduced-motion: reduce) {
+            *, *::before, *::after {
+                animation-duration: 0.01ms !important;
+                transition-duration: 0.01ms !important;
+            }
+        }
+    </style>
+</head>
+<body class="min-h-screen flex flex-col items-center justify-center p-4">
+    <div class="bg-atmosphere"></div>
+    <div class="noise-overlay"></div>
+    <div class="flash-overlay" id="flashOverlay"></div>
+
+    <div class="w-full max-w-4xl mx-auto">
+        <header class="text-center mb-8 animate-in">
+            <h1 class="font-display text-5xl md:text-7xl tracking-wider text-[var(--fg)] mb-2">ORANGE ROULETTE</h1>
+        </header>
+
+        <div class="flex justify-center gap-8 mb-8">
+            <div class="text-center">
+                <p class="text-xs text-[var(--muted)] uppercase tracking-wider mb-1">Ronda</p>
+                <p class="font-display text-3xl text-[var(--accent)]" id="roundDisplay">1</p>
+            </div>
+            <div class="text-center">
+                <p class="text-xs text-[var(--muted)] uppercase tracking-wider mb-1">Victorias</p>
+                <p class="font-display text-3xl text-[var(--gold)]" id="winsDisplay">0</p>
+            </div>
+            <div class="text-center">
+                <p class="text-xs text-[var(--muted)] uppercase tracking-wider mb-1">Derrotas</p>
+                <p class="font-display text-3xl text-[var(--danger)]" id="lossesDisplay">0</p>
+            </div>
+        </div>
+
+        <div class="flex justify-between items-center mb-8 px-4">
+            <div class="character alive" id="playerChar">
+                <div class="w-20 h-20 md:w-24 md:h-24 rounded-full bg-gradient-to-br from-[var(--accent)] to-[#cc5429] flex items-center justify-center">
+                    <svg class="w-12 h-12 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                        <circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 4-6 8-6s8 2 8 6"/>
+                    </svg>
+                </div>
+                <p class="text-center mt-3 font-display text-lg tracking-wider">TU</p>
+                <div class="stat-bar w-20 mt-2"><div class="stat-fill" id="playerHealth" style="width: 100%"></div></div>
+            </div>
+
+            <div class="text-center"><p class="font-display text-4xl text-[var(--muted)]">VS</p></div>
+
+            <div class="character alive" id="opponentChar">
+                <div class="w-20 h-20 md:w-24 md:h-24 rounded-full bg-gradient-to-br from-[#4a4a4a] to-[#2a2a2a] flex items-center justify-center">
+                    <svg class="w-12 h-12 text-[var(--muted)]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                        <circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 4-6 8-6s8 2 8 6"/>
+                    </svg>
+                </div>
+                <p class="text-center mt-3 font-display text-lg tracking-wider">OPONENTE</p>
+                <div class="stat-bar w-20 mt-2"><div class="stat-fill" id="opponentHealth" style="width: 100%"></div></div>
+            </div>
+        </div>
+
+        <div class="flex justify-center mb-8">
+            <div class="chamber-container" id="chamberContainer">
+                <div class="chamber">
+                    <div class="chamber-inner" id="chamberInner">
+                        <div class="bullet-hole" id="bulletHole"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="text-center mb-6">
+            <p class="text-sm text-[var(--muted)] uppercase tracking-wider">Turno de</p>
+            <p class="font-display text-2xl text-[var(--accent)]" id="turnIndicator">JUGADOR</p>
+        </div>
+
+        <div class="flex justify-center gap-6 mb-6">
+            <button class="fire-btn enabled" id="fireBtn" aria-label="Acción">
+                <svg class="text-[var(--danger)]" viewBox="0 0 24 24" fill="currentColor">
+                    <path d="M7 14l3-3-3-3 1.5-1.5L12.5 10l3.5-3.5L17.5 8 14 11.5l3.5 3.5-1.5 1.5-3.5-3.5L8.5 16 7 14z"/>
+                </svg>
+                <span class="btn-text text-[var(--fg)]" id="btnText">GIRAR</span>
+            </button>
+        </div>
+
+        <div class="text-center">
+            <p class="text-lg text-[var(--fg)]" id="gameMessage">Inicia el juego</p>
+        </div>
+
+        <div class="text-center mt-6">
+            <button class="hidden px-6 py-3 bg-[var(--card)] border border-[var(--border)] rounded-lg text-[var(--muted)] hover:border-[var(--accent)] hover:text-[var(--accent)] transition-all duration-300 tracking-wider text-sm uppercase" id="restartBtn">
+                Nueva Partida
+            </button>
+        </div>
+    </div>
+
+    <script>
+        // --- SISTEMA DE AUDIO ---
+        // Creamos el contexto de audio una sola vez
+        const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+
+        function playSound(type) {
+            if (audioCtx.state === 'suspended') {
+                audioCtx.resume();
+            }
+
+            if (type === 'spin') {
+                // Sonido metálico de girar
+                const osc = audioCtx.createOscillator();
+                const gain = audioCtx.createGain();
+                osc.type = 'triangle';
+                osc.frequency.setValueAtTime(400, audioCtx.currentTime);
+                osc.frequency.exponentialRampToValueAtTime(100, audioCtx.currentTime + 0.5);
+                gain.gain.setValueAtTime(0.1, audioCtx.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.5);
+                osc.connect(gain);
+                gain.connect(audioCtx.destination);
+                osc.start();
+                osc.stop(audioCtx.currentTime + 0.5);
+            } 
+            
+            else if (type === 'click') {
+                // Sonido de "click" seco (recámara vacía)
+                const osc = audioCtx.createOscillator();
+                const gain = audioCtx.createGain();
+                osc.type = 'square';
+                osc.frequency.setValueAtTime(800, audioCtx.currentTime);
+                osc.frequency.exponentialRampToValueAtTime(300, audioCtx.currentTime + 0.05);
+                gain.gain.setValueAtTime(0.2, audioCtx.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.05);
+                osc.connect(gain);
+                gain.connect(audioCtx.destination);
+                osc.start();
+                osc.stop(audioCtx.currentTime + 0.05);
+            } 
+            
+            else if (type === 'shot') {
+                // Sonido de disparo explosivo
+                const bufferSize = audioCtx.sampleRate * 0.5;
+                const buffer = audioCtx.createBuffer(1, bufferSize, audioCtx.sampleRate);
+                const data = buffer.getChannelData(0);
+                
+                // Generar ruido
+                for (let i = 0; i < bufferSize; i++) {
+                    data[i] = Math.random() * 2 - 1;
+                }
+
+                const noise = audioCtx.createBufferSource();
+                noise.buffer = buffer;
+
+                // Filtro para el estallido
+                const filter = audioCtx.createBiquadFilter();
+                filter.type = 'lowpass';
+                filter.frequency.setValueAtTime(1000, audioCtx.currentTime);
+                filter.frequency.exponentialRampToValueAtTime(100, audioCtx.currentTime + 0.3);
+
+                const gain = audioCtx.createGain();
+                gain.gain.setValueAtTime(1, audioCtx.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.3);
+
+                noise.connect(filter);
+                filter.connect(gain);
+                gain.connect(audioCtx.destination);
+                noise.start();
+                noise.stop(audioCtx.currentTime + 0.5);
+            }
+        }
+
+        // --- LÓGICA DEL JUEGO ---
+        const state = {
+            bulletPos: 0,
+            currentPos: 0,
+            isPlayerTurn: true,
+            gameOver: false,
+            round: 1,
+            wins: 0,
+            losses: 0,
+            chambers: 6,
+            phase: 'SPIN', 
+            isAnimating: false
+        };
+
+        const el = {
+            chamberInner: document.getElementById('chamberInner'),
+            fireBtn: document.getElementById('fireBtn'),
+            btnText: document.getElementById('btnText'),
+            restartBtn: document.getElementById('restartBtn'),
+            turnIndicator: document.getElementById('turnIndicator'),
+            message: document.getElementById('gameMessage'),
+            roundDisplay: document.getElementById('roundDisplay'),
+            winsDisplay: document.getElementById('winsDisplay'),
+            lossesDisplay: document.getElementById('lossesDisplay'),
+            playerHealth: document.getElementById('playerHealth'),
+            opponentHealth: document.getElementById('opponentHealth'),
+            playerChar: document.getElementById('playerChar'),
+            opponentChar: document.getElementById('opponentChar'),
+            flash: document.getElementById('flashOverlay'),
+            bulletHole: document.getElementById('bulletHole')
+        };
+
+        function createSlots() {
+            const existing = el.chamberInner.querySelectorAll('.chamber-slot');
+            existing.forEach(s => s.remove());
+            for (let i = 0; i < state.chambers; i++) {
+                const slot = document.createElement('div');
+                slot.className = 'chamber-slot';
+                const angle = (i * 360) / state.chambers;
+                const radius = 95;
+                slot.style.left = `calc(50% + ${Math.cos((angle - 90) * Math.PI / 180) * radius}px - 14px)`;
+                slot.style.top = `calc(50% + ${Math.sin((angle - 90) * Math.PI / 180) * radius}px - 14px)`;
+                el.chamberInner.appendChild(slot);
+            }
+        }
+
+        function updateUI() {
+            el.turnIndicator.textContent = state.isPlayerTurn ? 'JUGADOR' : 'OPONENTE';
+            el.turnIndicator.style.color = state.isPlayerTurn ? 'var(--accent)' : 'var(--muted)';
+            
+            el.fireBtn.classList.remove('enabled', 'waiting');
+            
+            if (state.phase === 'SPIN') {
+                el.btnText.textContent = 'GIRAR';
+                el.fireBtn.classList.add('enabled');
+                el.fireBtn.style.borderColor = 'var(--accent)';
+            } else if (state.phase === 'SHOOT') {
+                if (state.isPlayerTurn) {
+                    el.btnText.textContent = 'DISPARAR';
+                    el.fireBtn.classList.add('enabled');
+                    el.fireBtn.style.borderColor = 'var(--danger)';
+                } else {
+                    el.btnText.textContent = 'ESPERA...';
+                    el.fireBtn.classList.add('waiting');
+                    el.fireBtn.style.borderColor = 'var(--muted)';
+                }
+            }
+        }
+
+        function spin() {
+            if (state.isAnimating) return;
+            state.isAnimating = true;
+            
+            playSound('spin'); // Sonido de giro
+
+            state.bulletPos = Math.floor(Math.random() * state.chambers);
+            state.currentPos = 0;
+            
+            el.message.textContent = 'Girando el tambor...';
+            
+            el.chamberInner.style.transition = 'transform 1.5s cubic-bezier(0.17, 0.67, 0.12, 0.99)';
+            el.chamberInner.style.transform = `rotate(${720 + Math.random() * 360}deg)`;
+            
+            setTimeout(() => {
+                el.chamberInner.style.transition = 'none';
+                el.chamberInner.style.transform = 'rotate(0deg)';
+                
+                state.phase = 'SHOOT';
+                state.isAnimating = false;
+                el.message.textContent = 'Arma lista.';
+                
+                updateUI();
+                
+                if (!state.isPlayerTurn) {
+                    triggerOpponent();
+                }
+            }, 1500);
+        }
+
+        function fire() {
+            if (state.isAnimating) return;
+            state.isAnimating = true;
+
+            const rotation = (state.currentPos * 360 / state.chambers);
+            el.chamberInner.style.transition = 'transform 0.4s cubic-bezier(0.4, 0, 0.2, 1)';
+            el.chamberInner.style.transform = `rotate(${rotation}deg)`;
+
+            setTimeout(() => {
+                const bang = (state.currentPos === state.bulletPos);
+                
+                if (bang) {
+                    playSound('shot'); // Sonido de disparo real
+                    handleDeath();
+                } else {
+                    playSound('click'); // Sonido de recámara vacía
+                    handleSurvive();
+                }
+            }, 450);
+        }
+
+        function handleDeath() {
+            el.flash.classList.add('active');
+            document.body.classList.add('shake');
+            
+            const slots = el.chamberInner.querySelectorAll('.chamber-slot');
+            if (slots[state.currentPos]) slots[state.currentPos].classList.add('active');
+            el.bulletHole.classList.add('visible');
+
+            setTimeout(() => {
+                el.flash.classList.remove('active');
+                document.body.classList.remove('shake');
+            }, 300);
+
+            if (state.isPlayerTurn) {
+                state.losses++;
+                el.playerChar.classList.remove('alive');
+                el.playerChar.classList.add('dead');
+                el.playerHealth.style.width = '0%';
+                el.message.textContent = 'GAME OVER';
+                el.message.style.color = 'var(--danger)';
+            } else {
+                state.wins++;
+                el.opponentChar.classList.remove('alive');
+                el.opponentChar.classList.add('dead');
+                el.opponentHealth.style.width = '0%';
+                el.message.textContent = 'VICTORIA';
+                el.message.style.color = 'var(--gold)';
+            }
+
+            state.gameOver = true;
+            el.restartBtn.classList.remove('hidden');
+            updateStats();
+        }
+
+        function handleSurvive() {
+            const shooter = state.isPlayerTurn ? 'Tu' : 'El oponente';
+            el.message.textContent = `${shooter} sobrevivió.`;
+            
+            state.currentPos++;
+            if (state.currentPos >= state.chambers) state.currentPos = 0;
+
+            state.isPlayerTurn = !state.isPlayerTurn;
+            state.isAnimating = false;
+            
+            updateUI();
+            
+            if (!state.isPlayerTurn && !state.gameOver) {
+                triggerOpponent();
+            }
+        }
+
+        function triggerOpponent() {
+            if (state.gameOver) return;
+            el.message.textContent = 'El oponente piensa...';
+            
+            setTimeout(() => {
+                if (!state.gameOver) {
+                    fire();
+                }
+            }, 1500 + Math.random() * 1000);
+        }
+
+        function updateStats() {
+            el.roundDisplay.textContent = state.round;
+            el.winsDisplay.textContent = state.wins;
+            el.lossesDisplay.textContent = state.losses;
+        }
+
+        function resetGame() {
+            state.bulletPos = 0;
+            state.currentPos = 0;
+            state.isPlayerTurn = true;
+            state.gameOver = false;
+            state.isAnimating = false;
+            state.phase = 'SPIN';
+            state.round++;
+
+            el.chamberInner.style.transition = 'none';
+            el.chamberInner.style.transform = 'rotate(0deg)';
+            el.bulletHole.classList.remove('visible');
+
+            const slots = el.chamberInner.querySelectorAll('.chamber-slot');
+            slots.forEach(s => s.classList.remove('active'));
+
+            el.playerChar.classList.add('alive');
+            el.playerChar.classList.remove('dead');
+            el.opponentChar.classList.add('alive');
+            el.opponentChar.classList.remove('dead');
+            el.playerHealth.style.width = '100%';
+            el.opponentHealth.style.width = '100%';
+
+            el.message.textContent = 'Nueva ronda. Presiona para girar.';
+            el.message.style.color = 'var(--fg)';
+            el.restartBtn.classList.add('hidden');
+
+            updateUI();
+            updateStats();
+        }
+
+        el.fireBtn.addEventListener('click', () => {
+            if (state.gameOver || state.isAnimating) return;
+
+            if (state.phase === 'SPIN') {
+                spin();
+            } else if (state.phase === 'SHOOT') {
+                if (state.isPlayerTurn) {
+                    fire();
+                }
+            }
+        });
+
+        el.restartBtn.addEventListener('click', resetGame);
+
+        // Inicio
+        createSlots();
+        updateStats();
+        updateUI();
+    </script>
+</body>
+</html>
