@@ -1,50 +1,48 @@
-// --- GESTIÓN DE CONFIGURACIÓN ---
+// common.js (CORREGIDO)
 
+// --- CONFIGURACIÓN ---
 const defaultSettings = {
-    sensitivity: 0.002,    // Sensibilidad del ratón
-    volume: 0.5,           // Volumen maestro (0.0 a 1.0)
-    controls: "WASD"       // Placeholder para futura reasignación
+    sensitivity: 0.002,
+    volume: 0.5
 };
 
-// Guardar configuración (usado en el Menú)
 function saveSettings(settings) {
     localStorage.setItem('terrorGameSettings', JSON.stringify(settings));
-    console.log("Configuración guardada:", settings);
 }
 
-// Cargar configuración (usado en el Juego)
 function loadSettings() {
     const stored = localStorage.getItem('terrorGameSettings');
     return stored ? JSON.parse(stored) : defaultSettings;
 }
 
-// --- GENERADOR DE ASSETS PROCEDURALES (Recursos Gráficos) ---
+// --- GENERADOR DE GRÁFICOS (RETORNAN CANVAS, NO TEXTURAS) ---
 
-// Función para crear la textura de pared "sucia" (Se usará en todos los niveles)
-function createWallTexture() {
+function getWallCanvas() {
     const canvas = document.createElement('canvas');
     canvas.width = 512;
     canvas.height = 512;
     const ctx = canvas.getContext('2d');
-
-    // Base gris oscura
     ctx.fillStyle = '#1a1a1a';
     ctx.fillRect(0, 0, 512, 512);
-
-    // Ruido (Suciedad)
-    for (let i = 0; i < 30000; i++) {
+    for (let i = 0; i < 40000; i++) {
         ctx.fillStyle = Math.random() > 0.5 ? '#222' : '#111';
         ctx.fillRect(Math.random() * 512, Math.random() * 512, 2, 2);
     }
+    return canvas;
+}
 
-    // Manchas de sangre (rojo oscuro)
-    ctx.fillStyle = 'rgba(100, 0, 0, 0.3)';
-    for (let i = 0; i < 5; i++) {
-        ctx.beginPath();
-        ctx.arc(Math.random() * 512, Math.random() * 512, Math.random() * 50 + 20, 0, Math.PI * 2);
-        ctx.fill();
+function getFloorCanvas() {
+    const canvas = document.createElement('canvas');
+    canvas.width = 512;
+    canvas.height = 512;
+    const ctx = canvas.getContext('2d');
+    ctx.fillStyle = '#0a0a0a';
+    ctx.fillRect(0, 0, 512, 512);
+    ctx.strokeStyle = '#222';
+    ctx.lineWidth = 2;
+    for(let i=0; i<=512; i+=64) {
+        ctx.beginPath(); ctx.moveTo(i, 0); ctx.lineTo(i, 512); ctx.stroke();
+        ctx.beginPath(); ctx.moveTo(0, i); ctx.lineTo(512, i); ctx.stroke();
     }
-
-    const texture = new THREE.CanvasTexture(canvas);
-    return texture;
+    return canvas;
 }
