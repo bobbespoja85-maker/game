@@ -2,54 +2,91 @@
 <html lang="es">
 <head>
     <meta charset="UTF-8">
-    <title>Nivel 1 - El Encierro</title>
+    <title>Nivel 1 - El Despertar</title>
     <style>
         body { margin: 0; overflow: hidden; background: #000; }
         #crosshair {
             position: absolute; top: 50%; left: 50%;
-            width: 4px; height: 4px; background: white;
+            width: 4px; height: 4px; background: rgba(255,255,255,0.5);
             border-radius: 50%; transform: translate(-50%, -50%);
-            pointer-events: none;
+            pointer-events: none; mix-blend-mode: difference;
+        }
+        #message {
+            position: absolute; top: 60%; left: 50%; transform: translate(-50%, -50%);
+            color: white; font-family: monospace; pointer-events: none;
         }
     </style>
+    <!-- CARGAMOS TRES.JS GLOBALMENTE ANTES QUE NADA -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/PointerLockControls.js"></script>
 </head>
 <body>
-    <!-- Mira central -->
     <div id="crosshair"></div>
-
-    <!-- Cargar librería Common (Para texturas y config) -->
-    <script src="../common.js"></script>
+    <div id="message">Haz CLICK para empezar</div>
     
-    <!-- Cargar el motor del juego (Module type necesario para import) -->
-    <script type="module">
-        import * as GAME from './game.js';
-        
-        // --- LÓGICA ESPECÍFICA DEL NIVEL 1 ---
-        // Aquí defines qué pasa en este nivel específico.
-        
-        console.log("Nivel 1 cargado. Objetivo: Encontrar la salida.");
-        
-        // Ejemplo: Si el jugador llega a Z > 50, gana.
-        // (En game.js deberíamos exponer la cámara para leer su posición)
-        
-        // Simulación de victoria:
-        setTimeout(() => {
-            // NOTA: levelCompleted debe ser global o estar accesible
-            // En una estructura real, exportaríamos la función desde game.js
-            // Para este ejemplo simple, asumiremos que game.js la pone en window
-            window.levelCompleted = function() {
-                 const currentUrl = window.location.pathname;
-                 const match = currentUrl.match(/level(\d)\.html/);
-                 if(match) {
-                     const next = parseInt(match[1]) + 1;
-                     window.location.href = `level${next}.html`;
-                 }
-            }
-            
-            // Descomentar para probar la redirección:
-            // window.levelCompleted(); 
-        }, 5000);
+    <!-- Scripts del juego -->
+    <script src="../common.js"></script> 
+    <script src="game.js"></script> <!-- Ahora es script normal, no module -->
 
+    <script>
+        // --- LÓGICA DEL NIVEL 1 ---
+        window.startLevelLogic = function(scene, walls, camera) {
+            console.log("Generando Nivel 1...");
+
+            // Obtener textura del canvas de common.js
+            const wallCanvas = getWallCanvas();
+            const texture = new THREE.CanvasTexture(wallCanvas);
+            
+            const mat = new THREE.MeshStandardMaterial({ map: texture });
+            const geo = new THREE.BoxGeometry(10, 4, 1);
+
+            // Pasillo
+            createWall(scene, walls, mat, geo, -5, 0, -10);
+            createWall(scene, walls, mat, geo, -5, 0, -20);
+            createWall(scene, walls, mat, geo, -5, 0, -30);
+            createWall(scene, walls, mat, geo, -5, 0, -40);
+
+            createWall(scene, walls, mat, geo, 5, 0, -10);
+            createWall(scene, walls, mat, geo, 5, 0, -20);
+            createWall(scene, walls, mat, geo, 5, 0, -30);
+            createWall(scene, walls, mat, geo, 5, 0, -40);
+
+            createWall(scene, walls, mat, geo, 0, 0, -45); // Fondo
+            createWall(scene, walls, mat, geo, 0, 0, 0);   // Entrada
+
+            // Objetivo
+            const goalGeo = new THREE.BoxGeometry(1, 1, 1);
+            const goalMat = new THREE.MeshBasicMaterial({ color: 0xff0000 });
+            const goal = new THREE.Mesh(goalGeo, goalMat);
+            goal.position.set(0, 0, -42);
+            
+            const goalLight = new THREE.PointLight(0xff0000, 2, 10);
+            goalLight.position.set(0, 0, -42);
+            scene.add(goalLight);
+
+            scene.add(goal);
+            window.goalObject = goal; 
+            
+            const animateGoal = () => {
+                if(document.body.contains(goal)) {
+                    goal.rotation.x += 0.02;
+                    goal.rotation.y += 0.02;
+                    requestAnimationFrame(animateGoal);
+                }
+            };
+            animateGoal();
+        };
+
+        function createWall(scene, wallsArray, material, geometry, x, y, z) {
+            const wall = new THREE.Mesh(geometry, material);
+            wall.position.set(x, y, z);
+            scene.add(wall);
+            wallsArray.push(wall);
+        }
+
+        window.levelWin = function() {
+            window.location.href = 'level2.html';
+        }
     </script>
 </body>
 </html>
