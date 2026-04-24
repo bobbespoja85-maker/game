@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>Nivel 1 - El Encierro</title>
+    <style>
+        body { margin: 0; overflow: hidden; background: #000; }
+        #crosshair {
+            position: absolute; top: 50%; left: 50%;
+            width: 4px; height: 4px; background: white;
+            border-radius: 50%; transform: translate(-50%, -50%);
+            pointer-events: none;
+        }
+    </style>
+</head>
+<body>
+    <!-- Mira central -->
+    <div id="crosshair"></div>
+
+    <!-- Cargar librería Common (Para texturas y config) -->
+    <script src="../common.js"></script>
+    
+    <!-- Cargar el motor del juego (Module type necesario para import) -->
+    <script type="module">
+        import * as GAME from './game.js';
+        
+        // --- LÓGICA ESPECÍFICA DEL NIVEL 1 ---
+        // Aquí defines qué pasa en este nivel específico.
+        
+        console.log("Nivel 1 cargado. Objetivo: Encontrar la salida.");
+        
+        // Ejemplo: Si el jugador llega a Z > 50, gana.
+        // (En game.js deberíamos exponer la cámara para leer su posición)
+        
+        // Simulación de victoria:
+        setTimeout(() => {
+            // NOTA: levelCompleted debe ser global o estar accesible
+            // En una estructura real, exportaríamos la función desde game.js
+            // Para este ejemplo simple, asumiremos que game.js la pone en window
+            window.levelCompleted = function() {
+                 const currentUrl = window.location.pathname;
+                 const match = currentUrl.match(/level(\d)\.html/);
+                 if(match) {
+                     const next = parseInt(match[1]) + 1;
+                     window.location.href = `level${next}.html`;
+                 }
+            }
+            
+            // Descomentar para probar la redirección:
+            // window.levelCompleted(); 
+        }, 5000);
+
+    </script>
+</body>
+</html>
