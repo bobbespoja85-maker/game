@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>Nivel 2 - La Oscuridad</title>
+    <style>
+        body { margin: 0; overflow: hidden; background: #000; }
+        #crosshair {
+            position: absolute; top: 50%; left: 50%;
+            width: 4px; height: 4px; background: rgba(255,255,255,0.5);
+            border-radius: 50%; transform: translate(-50%, -50%);
+            pointer-events: none; mix-blend-mode: difference;
+        }
+    </style>
+</head>
+<body>
+    <div id="crosshair"></div>
+    
+    <script src="../common.js"></script>
+    <script type="module">
+        import './game.js';
+
+        window.startLevelLogic = function(scene, walls, camera) {
+            console.log("Generando Nivel 2 - Oscuridad...");
+
+            const texture = createWallTexture();
+            // Material más oscuro para este nivel
+            const mat = new THREE.MeshStandardMaterial({ map: texture, color: 0x333333 }); 
+            const geo = new THREE.BoxGeometry(10, 4, 1);
+
+            // Generar un laberinto simple en cruz
+            // Pasillo central
+            for(let i=0; i<10; i++) {
+                createWall(scene, walls, mat, geo, -12, 0, -10 - (i*5));
+                createWall(scene, walls, mat, geo, 12, 0, -10 - (i*5));
+            }
+
+            // Paredes transversales (Crean la confusión)
+            createWall(scene, walls, mat, geo, 0, 0, -15);
+            createWall(scene, walls, mat, geo, 0, 0, -35);
+
+            // Objetivo: Escondido en una esquina
+            const goalGeo = new THREE.BoxGeometry(1, 1, 1);
+            const goalMat = new THREE.MeshBasicMaterial({ color: 0x00ff00 }); // Verde este vez
+            const goal = new THREE.Mesh(goalGeo, goalMat);
+            goal.position.set(-15, 0, -50);
+            
+            const goalLight = new THREE.PointLight(0x00ff00, 2, 15);
+            goalLight.position.set(-15, 0, -50);
+            scene.add(goalLight);
+
+            scene.add(goal);
+            window.goalObject = goal;
+        };
+
+        function createWall(scene, wallsArray, material, geometry, x, y, z) {
+            const wall = new THREE.Mesh(geometry, material);
+            wall.position.set(x, y, z);
+            scene.add(wall);
+            wallsArray.push(wall);
+        }
+
+        window.levelWin = function() {
+            // Por ahora volvemos al menú, o level3.html si lo creas
+            alert("¡Nivel 2 completado! (Continuaría al nivel 3)");
+            window.location.href = '../index.html';
+        }
+    </script>
+</body>
+</html>
