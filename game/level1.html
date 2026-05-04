@@ -23,33 +23,37 @@
 </head>
 <body>
     <div id="crosshair"></div>
-    <div id="message">NIVEL 1: EL LABERINTO<br><small>WASD para Moverse. Encuentra la Luz Verde.</small></div>
+    <div id="message">NIVEL 1: EL LABERINTO<br><small>Audio Activo. Escucha al monstruo.</small></div>
     
+    <!-- CARGA DE SCRIPTS -->
     <script src="../common.js"></script> 
     <script src="game.js"></script>
     <script src="mazeGenerator.js"></script>
     <script src="entity.js"></script>
+    <script src="audioGen.js"></script>  <!-- NUEVO: Audio -->
+    <script src="sanity.js"></script>    <!-- NUEVO: Cordura -->
 
     <script>
         let killer = null;
+        let stepTimer = 0;
 
         window.startLevelLogic = function(scene, walls, camera) {
+            // Iniciar sistemas
+            initAudio();
+            initSanity();
+
             console.log("Generando Laberinto...");
 
-            // 1. Paredes
             const wallCanvas = getWallCanvas();
             const texture = new THREE.CanvasTexture(wallCanvas);
             const wallMat = new THREE.MeshStandardMaterial({ map: texture });
 
-            // 2. Generar Laberinto y Spawn
             const spawnPos = buildMazeFromGrid(scene, walls, wallMat);
             camera.position.set(spawnPos.x, 0, spawnPos.z);
 
-            // 3. Crear Asesino (Lo spawnamos lejos)
             killer = createEntity(scene);
             killer.position.set(spawnPos.x + 5, 0, spawnPos.z + 5); 
 
-            // 4. Objetivo
             const goalGeo = new THREE.BoxGeometry(1, 1, 1);
             const goalMat = new THREE.MeshBasicMaterial({ color: 0x00ff00 });
             const goal = new THREE.Mesh(goalGeo, goalMat);
@@ -62,27 +66,42 @@
             window.goalObject = goal;
         };
 
-        // Definimos la función que game.js llamará en cada frame
+        // Actualización principal (Llamada por game.js)
         window.updateEntity = function(delta, playerPos) {
             if (!killer) return;
 
             const dist = killer.position.distanceTo(playerPos);
 
-            // IA: Perseguir
+            // 1. Actualizar Audio del Monstruo
+            updateMonsterSound(dist);
+
+            // 2. Actualizar Cordura (Si está cerca de 10 unidades)
+            updateSanity(delta, dist < 10);
+
+            // 3. IA del Monstruo
             if (dist > 1.5 && dist < 20) {
                 const direction = new THREE.Vector3().subVectors(playerPos, killer.position).normalize();
-                killer.position.add(direction.multiplyScalar(2.5 * delta)); // Velocidad 2.5
+                killer.position.add(direction.multiplyScalar(2.5 * delta));
                 killer.lookAt(playerPos.x, killer.position.y, playerPos.z);
-                killer.position.y = Math.sin(Date.now() * 0.005) * 0.2; // Flotar
+                killer.position.y = Math.sin(Date.now() * 0.005) * 0.2;
             }
             
-            // Game Over
             if (dist < 1.0) {
                 document.body.style.background = "red";
-                alert("¡TE HA ATRAPADO!");
+                setTimeout(() => alert("¡TE HA ATRAPADO!"), 100);
                 location.reload();
             }
         };
+
+        // --- DETECCIÓN DE PASOS (Extra) ---
+        // Esto se ejecuta fuera de updateEntity para conectar con el teclado
+        setInterval(() => {
+            // Esto es un truco para detectar si te mueves, 
+            // en un sistema perfecto esto iría dentro de animate() de game.js
+            if (window.moveForward || window.moveBackward || window.moveLeft || window.moveRight) {
+                playStepSound();
+            }
+        }, 400); // Cada 400ms un paso
 
         window.levelWin = function() {
             alert("¡Nivel 1 Completado!");
