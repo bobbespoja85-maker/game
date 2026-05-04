@@ -2,89 +2,90 @@
 <html lang="es">
 <head>
     <meta charset="UTF-8">
-    <title>Nivel 1 - El Despertar</title>
+    <title>Nivel 1 - El Laberinto</title>
     <style>
         body { margin: 0; overflow: hidden; background: #000; }
         #crosshair {
             position: absolute; top: 50%; left: 50%;
-            width: 4px; height: 4px; background: rgba(255,255,255,0.5);
+            width: 4px; height: 4px; background: rgba(255,255,255,0.8);
             border-radius: 50%; transform: translate(-50%, -50%);
             pointer-events: none; mix-blend-mode: difference;
         }
         #message {
-            position: absolute; top: 60%; left: 50%; transform: translate(-50%, -50%);
-            color: white; font-family: monospace; pointer-events: none;
+            position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+            color: white; font-family: monospace; font-size: 20px;
+            background: rgba(0,0,0,0.8); padding: 20px; border: 1px solid red;
+            pointer-events: none; text-align: center;
         }
     </style>
-    <!-- CARGAMOS TRES.JS GLOBALMENTE ANTES QUE NADA -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/PointerLockControls.js"></script>
 </head>
 <body>
     <div id="crosshair"></div>
-    <div id="message">Haz CLICK para empezar</div>
+    <div id="message">NIVEL 1: EL LABERINTO<br><small>WASD para Moverse. Encuentra la Luz Verde.</small></div>
     
-    <!-- Scripts del juego -->
     <script src="../common.js"></script> 
-    <script src="game.js"></script> <!-- Ahora es script normal, no module -->
+    <script src="game.js"></script>
+    <script src="mazeGenerator.js"></script>
+    <script src="entity.js"></script>
 
     <script>
-        // --- LÓGICA DEL NIVEL 1 ---
-        window.startLevelLogic = function(scene, walls, camera) {
-            console.log("Generando Nivel 1...");
+        let killer = null;
 
-            // Obtener textura del canvas de common.js
+        window.startLevelLogic = function(scene, walls, camera) {
+            console.log("Generando Laberinto...");
+
+            // 1. Paredes
             const wallCanvas = getWallCanvas();
             const texture = new THREE.CanvasTexture(wallCanvas);
-            
-            const mat = new THREE.MeshStandardMaterial({ map: texture });
-            const geo = new THREE.BoxGeometry(10, 4, 1);
+            const wallMat = new THREE.MeshStandardMaterial({ map: texture });
 
-            // Pasillo
-            createWall(scene, walls, mat, geo, -5, 0, -10);
-            createWall(scene, walls, mat, geo, -5, 0, -20);
-            createWall(scene, walls, mat, geo, -5, 0, -30);
-            createWall(scene, walls, mat, geo, -5, 0, -40);
+            // 2. Generar Laberinto y Spawn
+            const spawnPos = buildMazeFromGrid(scene, walls, wallMat);
+            camera.position.set(spawnPos.x, 0, spawnPos.z);
 
-            createWall(scene, walls, mat, geo, 5, 0, -10);
-            createWall(scene, walls, mat, geo, 5, 0, -20);
-            createWall(scene, walls, mat, geo, 5, 0, -30);
-            createWall(scene, walls, mat, geo, 5, 0, -40);
+            // 3. Crear Asesino (Lo spawnamos lejos)
+            killer = createEntity(scene);
+            killer.position.set(spawnPos.x + 5, 0, spawnPos.z + 5); 
 
-            createWall(scene, walls, mat, geo, 0, 0, -45); // Fondo
-            createWall(scene, walls, mat, geo, 0, 0, 0);   // Entrada
-
-            // Objetivo
+            // 4. Objetivo
             const goalGeo = new THREE.BoxGeometry(1, 1, 1);
-            const goalMat = new THREE.MeshBasicMaterial({ color: 0xff0000 });
+            const goalMat = new THREE.MeshBasicMaterial({ color: 0x00ff00 });
             const goal = new THREE.Mesh(goalGeo, goalMat);
-            goal.position.set(0, 0, -42);
+            goal.position.set(-spawnPos.x, 0, -spawnPos.z); 
             
-            const goalLight = new THREE.PointLight(0xff0000, 2, 10);
-            goalLight.position.set(0, 0, -42);
+            const goalLight = new THREE.PointLight(0x00ff00, 2, 10);
+            goalLight.position.copy(goal.position);
             scene.add(goalLight);
-
             scene.add(goal);
-            window.goalObject = goal; 
-            
-            const animateGoal = () => {
-                if(document.body.contains(goal)) {
-                    goal.rotation.x += 0.02;
-                    goal.rotation.y += 0.02;
-                    requestAnimationFrame(animateGoal);
-                }
-            };
-            animateGoal();
+            window.goalObject = goal;
         };
 
-        function createWall(scene, wallsArray, material, geometry, x, y, z) {
-            const wall = new THREE.Mesh(geometry, material);
-            wall.position.set(x, y, z);
-            scene.add(wall);
-            wallsArray.push(wall);
-        }
+        // Definimos la función que game.js llamará en cada frame
+        window.updateEntity = function(delta, playerPos) {
+            if (!killer) return;
+
+            const dist = killer.position.distanceTo(playerPos);
+
+            // IA: Perseguir
+            if (dist > 1.5 && dist < 20) {
+                const direction = new THREE.Vector3().subVectors(playerPos, killer.position).normalize();
+                killer.position.add(direction.multiplyScalar(2.5 * delta)); // Velocidad 2.5
+                killer.lookAt(playerPos.x, killer.position.y, playerPos.z);
+                killer.position.y = Math.sin(Date.now() * 0.005) * 0.2; // Flotar
+            }
+            
+            // Game Over
+            if (dist < 1.0) {
+                document.body.style.background = "red";
+                alert("¡TE HA ATRAPADO!");
+                location.reload();
+            }
+        };
 
         window.levelWin = function() {
+            alert("¡Nivel 1 Completado!");
             window.location.href = 'level2.html';
         }
     </script>
