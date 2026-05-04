@@ -2,97 +2,89 @@
 <html lang="es">
 <head>
     <meta charset="UTF-8">
-    <title>Nivel 1 - El Laberinto</title>
+    <title>Nivel 1 - El Despertar</title>
     <style>
         body { margin: 0; overflow: hidden; background: #000; }
         #crosshair {
             position: absolute; top: 50%; left: 50%;
-            width: 4px; height: 4px; background: rgba(255,255,255,0.8);
+            width: 4px; height: 4px; background: rgba(255,255,255,0.5);
             border-radius: 50%; transform: translate(-50%, -50%);
             pointer-events: none; mix-blend-mode: difference;
         }
         #message {
-            position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
-            color: white; font-family: monospace; font-size: 20px;
-            background: rgba(0,0,0,0.8); padding: 20px; border: 1px solid red;
-            pointer-events: none; text-align: center;
+            position: absolute; top: 60%; left: 50%; transform: translate(-50%, -50%);
+            color: white; font-family: monospace; pointer-events: none;
         }
     </style>
+    <!-- CARGAMOS TRES.JS GLOBALMENTE ANTES QUE NADA -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/PointerLockControls.js"></script>
 </head>
 <body>
     <div id="crosshair"></div>
-    <div id="message">NIVEL 1: EL LABERINTO<br><small>Encuentra la luz verde. Escapa del Hombre Gris.</small></div>
+    <div id="message">Haz CLICK para empezar</div>
     
-    <!-- CARGAR MÓDULOS DEL JUEGO -->
+    <!-- Scripts del juego -->
     <script src="../common.js"></script> 
-    <script src="game.js"></script>
-    <script src="mazeGenerator.js"></script> <!-- NUEVO: Generador -->
-    <script src="entity.js"></script>         <!-- NUEVO: Entidad -->
+    <script src="game.js"></script> <!-- Ahora es script normal, no module -->
 
     <script>
-        let killer = null;
-
+        // --- LÓGICA DEL NIVEL 1 ---
         window.startLevelLogic = function(scene, walls, camera) {
-            console.log("Generando Laberinto Procedural...");
+            console.log("Generando Nivel 1...");
 
-            // 1. Textura de Pared
+            // Obtener textura del canvas de common.js
             const wallCanvas = getWallCanvas();
             const texture = new THREE.CanvasTexture(wallCanvas);
-            const wallMat = new THREE.MeshStandardMaterial({ map: texture });
-
-            // 2. Generar Laberinto y obtener spawn del jugador
-            const spawnPos = buildMazeFromGrid(scene, walls, wallMat);
             
-            // Mover cámara al spawn
-            camera.position.set(spawnPos.x, 0, spawnPos.z);
+            const mat = new THREE.MeshStandardMaterial({ map: texture });
+            const geo = new THREE.BoxGeometry(10, 4, 1);
 
-            // 3. Crear EL ASESINO (Lo spawnamos lejos del jugador)
-            killer = createEntity(scene);
-            killer.position.set(spawnPos.x + 5, 0, spawnPos.z + 5); // Spawn cerca para probar
+            // Pasillo
+            createWall(scene, walls, mat, geo, -5, 0, -10);
+            createWall(scene, walls, mat, geo, -5, 0, -20);
+            createWall(scene, walls, mat, geo, -5, 0, -30);
+            createWall(scene, walls, mat, geo, -5, 0, -40);
 
-            // 4. Objetivo (Luz Verde en una esquina aleatoria del laberinto)
+            createWall(scene, walls, mat, geo, 5, 0, -10);
+            createWall(scene, walls, mat, geo, 5, 0, -20);
+            createWall(scene, walls, mat, geo, 5, 0, -30);
+            createWall(scene, walls, mat, geo, 5, 0, -40);
+
+            createWall(scene, walls, mat, geo, 0, 0, -45); // Fondo
+            createWall(scene, walls, mat, geo, 0, 0, 0);   // Entrada
+
+            // Objetivo
             const goalGeo = new THREE.BoxGeometry(1, 1, 1);
-            const goalMat = new THREE.MeshBasicMaterial({ color: 0x00ff00 });
+            const goalMat = new THREE.MeshBasicMaterial({ color: 0xff0000 });
             const goal = new THREE.Mesh(goalGeo, goalMat);
+            goal.position.set(0, 0, -42);
             
-            // Poner el objetivo en el extremo opuesto del laberinto
-            goal.position.set(-spawnPos.x, 0, -spawnPos.z); 
-            
-            const goalLight = new THREE.PointLight(0x00ff00, 2, 10);
-            goalLight.position.copy(goal.position);
+            const goalLight = new THREE.PointLight(0xff0000, 2, 10);
+            goalLight.position.set(0, 0, -42);
             scene.add(goalLight);
+
             scene.add(goal);
-            window.goalObject = goal;
+            window.goalObject = goal; 
+            
+            const animateGoal = () => {
+                if(document.body.contains(goal)) {
+                    goal.rotation.x += 0.02;
+                    goal.rotation.y += 0.02;
+                    requestAnimationFrame(animateGoal);
+                }
+            };
+            animateGoal();
         };
 
-        // Sobrescribimos animate en game.js o añadimos lógica extra si es necesario
-        // Pero para actualizar la entidad, necesitamos inyectarlo en el bucle principal.
-        // La forma más fácil sin tocar game.js de nuevo es usar un intervalo o modificar game.js.
-        // Como no quieres tocar game.js, voy a agregar un "hook" en game.js si existe.
-        
-        // Truco: Vamos a hacer un update manual separado ya que game.js es el "dueño" del loop
-        // Nota: En una estructura ideal, esto iría dentro de animate() de game.js.
-        // Para hacerlo funcionar AHORA, vamos a inyectar la lógica en el objeto window 
-        // y hacer que game.js la llame si existe, O simplemente usamos un setInterval aquí.
-        
-        let lastTime = performance.now();
-        
-        function updateLoop() {
-            const now = performance.now();
-            const delta = (now - lastTime) / 1000;
-            
-            if (window.camera && killer) { // Si la cámara existe
-                updateEntity(delta, window.camera.position);
-            }
-            lastTime = now;
-            requestAnimationFrame(updateLoop);
+        function createWall(scene, wallsArray, material, geometry, x, y, z) {
+            const wall = new THREE.Mesh(geometry, material);
+            wall.position.set(x, y, z);
+            scene.add(wall);
+            wallsArray.push(wall);
         }
-        updateLoop();
 
         window.levelWin = function() {
-            alert("¡Escapaste del laberinto!");
             window.location.href = 'level2.html';
         }
     </script>
