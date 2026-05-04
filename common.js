@@ -1,4 +1,4 @@
-// common.js (CORREGIDO)
+// common.js
 
 // --- CONFIGURACIÓN ---
 const defaultSettings = {
@@ -15,7 +15,7 @@ function loadSettings() {
     return stored ? JSON.parse(stored) : defaultSettings;
 }
 
-// --- GENERADOR DE GRÁFICOS (RETORNAN CANVAS, NO TEXTURAS) ---
+// --- GENERADOR DE GRÁFICOS (CANVAS) ---
 
 function getWallCanvas() {
     const canvas = document.createElement('canvas');
@@ -24,6 +24,7 @@ function getWallCanvas() {
     const ctx = canvas.getContext('2d');
     ctx.fillStyle = '#1a1a1a';
     ctx.fillRect(0, 0, 512, 512);
+    // Ruido
     for (let i = 0; i < 40000; i++) {
         ctx.fillStyle = Math.random() > 0.5 ? '#222' : '#111';
         ctx.fillRect(Math.random() * 512, Math.random() * 512, 2, 2);
@@ -38,6 +39,7 @@ function getFloorCanvas() {
     const ctx = canvas.getContext('2d');
     ctx.fillStyle = '#0a0a0a';
     ctx.fillRect(0, 0, 512, 512);
+    // Baldosas
     ctx.strokeStyle = '#222';
     ctx.lineWidth = 2;
     for(let i=0; i<=512; i+=64) {
