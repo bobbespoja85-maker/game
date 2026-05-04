@@ -1,4 +1,4 @@
-// game/game.js (Versión Final - UI Fix)
+// game/game.js (CORREGIDO)
 
 // --- VARIABLES GLOBALES ---
 let camera, scene, renderer, controls;
@@ -6,96 +6,86 @@ let moveForward = false, moveBackward = false, moveLeft = false, moveRight = fal
 let prevTime = performance.now();
 let velocity = new THREE.Vector3();
 let direction = new THREE.Vector3();
-let walls = []; 
-let goalObject = null; 
+let walls = []; // Array para colisiones
+let goalObject = null; // Objeto para pasar de nivel
 let settings;
 
 // --- INICIALIZACIÓN ---
 function init() {
+    // 1. Cargar Configuración
     settings = loadSettings();
 
+    // 2. Escena
     scene = new THREE.Scene();
     scene.background = new THREE.Color(0x000000);
-    scene.fog = new THREE.FogExp2(0x000000, 0.05); // Niebla ligera
+    scene.fog = new THREE.FogExp2(0x000000, 0.05); // Niebla reducida para ver mejor
 
+    // 3. Cámara
     camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
-    camera.position.y = 0; // Asegurar que estamos en el suelo (Y=0)
 
-    // Luz ambiental un poco más fuerte para ver al empezar
-    const ambient = new THREE.AmbientLight(0x555555); 
+    // 4. Luces (Linterna del jugador)
+    const light = new THREE.PointLight(0xffffff, 1, 20);
+    light.position.set(0, 0, 0); 
+    camera.add(light);
+    
+    const ambient = new THREE.AmbientLight(0x404040); // Luz ambiental para no ver todo negro
     scene.add(ambient);
-
-    // Luz de linterna del jugador
-    const flashlight = new THREE.PointLight(0xffffff, 1.5, 20);
-    flashlight.position.set(0, 0, 0);
-    camera.add(flashlight);
     scene.add(camera);
 
-    // --- CONTROLES Y LÓGICA UI (EL ARREGLO) ---
+    // 5. Controles (Usamos la librería global THREE)
     controls = new THREE.PointerLockControls(camera, document.body);
-
-    // 1. Cuando el ratón se bloquea (Juego Activo)
-    controls.addEventListener('lock', () => {
-        const msg = document.getElementById('message');
-        if (msg) msg.style.display = 'none'; // Ocultar mensaje
-        console.log("Ratón bloqueado - Juego Activo");
-    });
-
-    // 2. Cuando el ratón se desbloquea (Menú/Escape)
-    controls.addEventListener('unlock', () => {
-        const msg = document.getElementById('message');
-        if (msg) msg.style.display = 'block'; // Mostrar mensaje
-        console.log("Ratón desbloqueado - Pausa");
-    });
-
-    // 3. Click para intentar bloquear
+    
+    // Click para bloquear puntero
     document.body.addEventListener('click', () => {
         controls.lock();
     });
 
-    // Renderizador
+    // 6. Renderizador
     renderer = new THREE.WebGLRenderer({ antialias: true });
     renderer.setSize(window.innerWidth, window.innerHeight);
     document.body.appendChild(renderer.domElement);
 
+    // 7. Listeners Teclado
     document.addEventListener('keydown', onKeyDown);
     document.addEventListener('keyup', onKeyUp);
     window.addEventListener('resize', onWindowResize);
 
+    // 8. Cargar Entorno Base
     setupEnvironment();
 
-    // Cargar nivel con retardo
+    // 9. Arrancar Lógica del Nivel (Usamos un pequeño retardo para asegurar que el HTML cargó la función)
     setTimeout(() => {
         if (window.startLevelLogic) {
             window.startLevelLogic(scene, walls, camera);
+        } else {
+            console.error("Error: No se encontró startLevelLogic en el HTML del nivel.");
         }
     }, 100);
 }
 
 function setupEnvironment() {
-    // Suelo más claro para saber dónde pisas
+    // Suelo (Recibe canvas de common.js y lo convierte en textura Three.js)
     const floorCanvas = getFloorCanvas();
     const floorTex = new THREE.CanvasTexture(floorCanvas);
     
     const floorGeo = new THREE.PlaneGeometry(200, 200);
     const floorMat = new THREE.MeshStandardMaterial({ 
         map: floorTex, 
-        roughness: 0.5,
-        color: 0x444444 // Un poco más claro que negro puro
+        roughness: 0.8 
     });
     const floor = new THREE.Mesh(floorGeo, floorMat);
     floor.rotation.x = -Math.PI / 2;
-    floor.position.y = -1.5; // Un poco más abajo de la cámara (Cámara en 0)
+    floor.position.y = -2; 
     scene.add(floor);
 
     // Techo
-    const ceil = new THREE.Mesh(floorGeo, new THREE.MeshBasicMaterial({ color: 0x111111 }));
+    const ceil = new THREE.Mesh(floorGeo, new THREE.MeshBasicMaterial({ color: 0x050505 }));
     ceil.rotation.x = Math.PI / 2;
-    ceil.position.y = 2.5;
+    ceil.position.y = 2;
     scene.add(ceil);
 }
 
-// --- MOVIMIENTO (Igual que antes) ---
+// --- MOVIMIENTO Y COLISIONES ---
 function onKeyDown(event) {
     switch (event.code) {
         case 'ArrowUp': case 'KeyW': moveForward = true; break;
@@ -115,6 +105,7 @@ function onKeyUp(event) {
 }
 
 function checkCollision(newPos) {
+    // Caja del jugador
     const playerBox = new THREE.Box3().setFromCenterAndSize(newPos, new THREE.Vector3(1, 2, 1));
     for (let wall of walls) {
         const wallBox = new THREE.Box3().setFromObject(wall);
@@ -126,7 +117,9 @@ function checkCollision(newPos) {
 function checkGoal() {
     if (goalObject) {
         const dist = camera.position.distanceTo(goalObject.position);
-        if (dist < 3) if (window.levelWin) window.levelWin();
+        if (dist < 3) { // Distancia aumentada un poco
+            if (window.levelWin) window.levelWin();
+        }
     }
 }
 
@@ -152,12 +145,14 @@ function animate() {
         if (moveForward || moveBackward) velocity.z -= direction.z * 40.0 * delta;
         if (moveLeft || moveRight) velocity.x -= direction.x * 40.0 * delta;
 
+        // Movimiento X
         controls.moveRight(-velocity.x * delta);
         if (checkCollision(camera.position.clone())) {
             controls.moveRight(velocity.x * delta);
             velocity.x = 0;
         }
 
+        // Movimiento Z
         controls.moveForward(-velocity.z * delta);
         if (checkCollision(camera.position.clone())) {
             controls.moveForward(velocity.z * delta);
@@ -169,5 +164,6 @@ function animate() {
     renderer.render(scene, camera);
 }
 
+// Iniciar todo
 init();
 animate();
