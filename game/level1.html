@@ -7,61 +7,72 @@
         body { margin: 0; overflow: hidden; background: #000; }
         #crosshair {
             position: absolute; top: 50%; left: 50%;
-            width: 4px; height: 4px; background: rgba(255,255,255,0.5);
+            width: 4px; height: 4px; background: rgba(255,255,255,0.8);
             border-radius: 50%; transform: translate(-50%, -50%);
             pointer-events: none; mix-blend-mode: difference;
         }
         #message {
-            position: absolute; top: 60%; left: 50%; transform: translate(-50%, -50%);
-            color: white; font-family: monospace; pointer-events: none;
+            position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+            color: white; font-family: monospace; font-size: 20px;
+            background: rgba(0,0,0,0.7); padding: 20px; border: 1px solid white;
+            pointer-events: none; text-align: center;
         }
     </style>
-    <!-- CARGAMOS TRES.JS GLOBALMENTE ANTES QUE NADA -->
+    <!-- Librerías -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/PointerLockControls.js"></script>
 </head>
 <body>
     <div id="crosshair"></div>
-    <div id="message">Haz CLICK para empezar</div>
+    <!-- Mensaje UI -->
+    <div id="message">HAZ CLICK PARA EMPEZAR<br><small>WASD para Moverse</small></div>
     
-    <!-- Scripts del juego -->
     <script src="../common.js"></script> 
-    <script src="game.js"></script> <!-- Ahora es script normal, no module -->
+    <script src="game.js"></script>
 
     <script>
         // --- LÓGICA DEL NIVEL 1 ---
         window.startLevelLogic = function(scene, walls, camera) {
-            console.log("Generando Nivel 1...");
+            console.log("Nivel 1 Generado");
 
-            // Obtener textura del canvas de common.js
+            // Textura
             const wallCanvas = getWallCanvas();
             const texture = new THREE.CanvasTexture(wallCanvas);
-            
             const mat = new THREE.MeshStandardMaterial({ map: texture });
-            const geo = new THREE.BoxGeometry(10, 4, 1);
+            const geo = new THREE.BoxGeometry(10, 5, 1);
 
-            // Pasillo
-            createWall(scene, walls, mat, geo, -5, 0, -10);
-            createWall(scene, walls, mat, geo, -5, 0, -20);
-            createWall(scene, walls, mat, geo, -5, 0, -30);
-            createWall(scene, walls, mat, geo, -5, 0, -40);
+            // --- Crear Pasillo Inmediato (Para referencia visual) ---
+            // Paredes alrededor del punto de inicio (0,0,0)
+            // Izquierda
+            createWall(scene, walls, mat, geo, -5, 0.5, -5);
+            createWall(scene, walls, mat, geo, -5, 0.5, -10);
+            createWall(scene, walls, mat, geo, -5, 0.5, -15);
+            
+            // Derecha
+            createWall(scene, walls, mat, geo, 5, 0.5, -5);
+            createWall(scene, walls, mat, geo, 5, 0.5, -10);
+            createWall(scene, walls, mat, geo, 5, 0.5, -15);
 
-            createWall(scene, walls, mat, geo, 5, 0, -10);
-            createWall(scene, walls, mat, geo, 5, 0, -20);
-            createWall(scene, walls, mat, geo, 5, 0, -30);
-            createWall(scene, walls, mat, geo, 5, 0, -40);
+            // Fondo del pasillo (Objetivo al fondo)
+            createWall(scene, walls, mat, geo, 0, 0.5, -20);
 
-            createWall(scene, walls, mat, geo, 0, 0, -45); // Fondo
-            createWall(scene, walls, mat, geo, 0, 0, 0);   // Entrada
+            // Cerrar atrás (para no volver)
+            createWall(scene, walls, mat, geo, 0, 0.5, 2);
 
-            // Objetivo
+            // --- LUZ DE REFERENCIA EN EL INICIO ---
+            // Una luz tenue roja justo donde empiezas para que veas las paredes cercanas
+            const startLight = new THREE.PointLight(0xff0000, 0.8, 15);
+            startLight.position.set(0, 2, 0);
+            scene.add(startLight);
+
+            // --- OBJETIVO ---
             const goalGeo = new THREE.BoxGeometry(1, 1, 1);
             const goalMat = new THREE.MeshBasicMaterial({ color: 0xff0000 });
             const goal = new THREE.Mesh(goalGeo, goalMat);
-            goal.position.set(0, 0, -42);
+            goal.position.set(0, 0, -18); // Justo delante de la pared final
             
             const goalLight = new THREE.PointLight(0xff0000, 2, 10);
-            goalLight.position.set(0, 0, -42);
+            goalLight.position.set(0, 0, -18);
             scene.add(goalLight);
 
             scene.add(goal);
