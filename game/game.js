@@ -1,4 +1,3 @@
-// game.js
 // Maneja el renderizado 3D, la escena, el entorno y el bucle del juego.
 
 // --- VARIABLES GLOBALES ---
