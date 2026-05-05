@@ -2,20 +2,20 @@
 <html lang="es">
 <head>
     <meta charset="UTF-8">
-    <title>Nivel 1 - Interacción</title>
+    <title>Nivel 1 - Controles Separados</title>
     <style>
         body { margin: 0; overflow: hidden; background: #000; }
         #crosshair {
             position: absolute; top: 50%; left: 50%;
             width: 4px; height: 4px; background: white;
             border-radius: 50%; transform: translate(-50%, -50%);
-            pointer-events: none;
+            pointer-events: none; z-index: 2;
         }
         #message {
             position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
             color: white; font-family: monospace; font-size: 20px;
-            background: rgba(0,0,0,0.8); padding: 20px; border: 1px solid red;
-            pointer-events: none; text-align: center;
+            background: rgba(0,0,0,0.9); padding: 20px; border: 2px solid red;
+            pointer-events: none; text-align: center; z-index: 2;
         }
     </style>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
@@ -23,26 +23,27 @@
 </head>
 <body>
     <div id="crosshair"></div>
-    <div id="message">NIVEL 1: EL LABERINTO<br><small>Paredes visibles y Puertas funcionales.</small></div>
+    <div id="message">HAZ CLICK PARA JUGAR<br><small>Sistema de controles nuevo cargado.</small></div>
     
+    <!-- Carga de scripts en orden -->
     <script src="../common.js"></script> 
     <script src="game.js"></script>
+    <script src="controls.js"></script>       <!-- NUEVO: Controles de movimiento -->
     <script src="mazeGenerator.js"></script>
     <script src="entity.js"></script>
     <script src="audioGen.js"></script>
     <script src="sanity.js"></script>
-    <script src="interactions.js"></script> <!-- NUEVO: Interacciones -->
+    <script src="interactions.js"></script>
 
     <script>
         let killer = null;
-        let stepTimer = 0;
 
         window.startLevelLogic = function(scene, walls, camera) {
             initAudio();
             initSanity();
-            initInteraction(scene); // Iniciar sistema de puertas
+            initInteraction(scene); 
 
-            console.log("Generando Laberinto...");
+            console.log("Nivel cargado. Sistema de controles activo.");
 
             const wallCanvas = getWallCanvas();
             const texture = new THREE.CanvasTexture(wallCanvas);
@@ -51,8 +52,6 @@
             const spawnPos = buildMazeFromGrid(scene, walls, wallMat);
             camera.position.set(spawnPos.x, 0, spawnPos.z);
 
-            // --- NUEVA: PONER UNA PUERTA BLOQUEANDO EL PASILLO ---
-            // Ponemos la puerta un poco adelante del spawn
             createDoor(scene, spawnPos.x, 0, spawnPos.z - 2); 
 
             killer = createEntity(scene);
@@ -73,8 +72,7 @@
         window.updateEntity = function(delta, playerPos) {
             if (!killer) return;
 
-            // --- NUEVO: Chequear interacción cada frame ---
-            checkInteraction(playerPos); // Pasar cámara o posición
+            checkInteraction(window.camera); 
 
             const dist = killer.position.distanceTo(playerPos);
             updateMonsterSound(dist);
@@ -89,19 +87,20 @@
             
             if (dist < 1.0) {
                 document.body.style.background = "red";
-                setTimeout(() => alert("¡TE HA ATRAPADO!"), 100);
+                setTimeout(() => alert("¡GAME OVER!"), 100);
                 location.reload();
             }
         };
 
+        // Pasos de audio (usando la variable global inputActive de controls.js)
         setInterval(() => {
-            if (window.moveForward || window.moveBackward || window.moveLeft || window.moveRight) {
+            if (window.inputActive) {
                 playStepSound();
             }
         }, 400);
 
         window.levelWin = function() {
-            alert("¡Nivel 1 Completado!");
+            alert("¡Nivel 1 Terminado!");
             window.location.href = 'level2.html';
         }
     </script>
