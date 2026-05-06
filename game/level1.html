@@ -5,16 +5,12 @@
     <title>Nivel 1 - El Laberinto</title>
     <style>
         body { margin: 0; overflow: hidden; background: #000; user-select: none; }
-        
-        /* Mira Central */
         #crosshair {
             position: absolute; top: 50%; left: 50%;
             width: 4px; height: 4px; background: rgba(255,255,255,0.8);
             border-radius: 50%; transform: translate(-50%, -50%);
             pointer-events: none; z-index: 5;
         }
-
-        /* Mensaje Principal (Click para jugar) */
         #message {
             position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
             color: white; font-family: 'Courier New', monospace; font-size: 22px;
@@ -23,140 +19,88 @@
         }
         #message small { display: block; margin-top: 10px; color: #aaa; font-size: 16px; }
     </style>
-
-    <!-- Librerías Externas (CDN) -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/PointerLockControls.js"></script>
 </head>
 <body>
-
-    <!-- Elementos UI -->
     <div id="crosshair"></div>
-    <div id="message">HAZ CLICK PARA COMENZAR<br><small>WASD: Moverse | E: Interactuar</small></div>
+    <div id="message">HAZ CLICK PARA COMENZAR<br><small>WASD: Moverse | E: Abrir | F: Linterna</small></div>
+    
+    <script src="../common.js"></script> 
+    <script src="game.js"></script>
+    <script src="controls.js"></script>
+    <script src="items.js"></script>
+    <script src="mazeGenerator.js"></script>
+    <script src="entity.js"></script>
+    <script src="interactions.js"></script>
+    <script src="audioGen.js"></script>
+    <script src="sanity.js"></script>
 
-    <!-- ============================================== -->
-    <!-- CARGA DE SCRIPTS DEL JUEGO (ORDEN IMPORTANTE) -->
-    <!-- ============================================== -->
-    <script src="../common.js"></script>      <!-- 1. Configuración y Texturas -->
-    <script src="game.js"></script>           <!-- 2. Motor y Renderizado -->
-    <script src="controls.js"></script>        <!-- 3. Movimiento y Física -->
-    <script src="mazeGenerator.js"></script>  <!-- 4. Generador de Laberinto -->
-    <script src="entity.js"></script>          <!-- 5. Modelo 3D del Asesino -->
-    <script src="interactions.js"></script>    <!-- 6. Sistema de Puertas -->
-    <script src="audioGen.js"></script>        <!-- 7. Sintetizador de Sonido -->
-    <script src="sanity.js"></script>          <!-- 8. Barra de Cordura -->
-
-    <!-- ============================================== -->
-    <!-- LÓGICA ESPECÍFICA DEL NIVEL 1 -->
-    <!-- ============================================== -->
     <script>
         let killer = null;
 
-        // Función que se ejecuta al cargar el nivel (llamada por game.js)
         window.startLevelLogic = function(scene, walls, camera) {
-            console.log("--- INICIANDO NIVEL 1 ---");
-
-            // 1. Inicializar Sistemas Auxiliares
             initAudio();
             initSanity();
             initInteraction(scene);
 
-            // 2. Generar Textura de Pared
             const wallCanvas = getWallCanvas();
             const texture = new THREE.CanvasTexture(wallCanvas);
             const wallMat = new THREE.MeshStandardMaterial({ map: texture });
 
-            // 3. Generar Laberinto y obtener posición de spawn
-            // buildMazeFromGrid devuelve {x, z} del punto seguro
             const spawnPos = buildMazeFromGrid(scene, walls, wallMat);
-
-            // 4. Configurar Jugador (Cámara)
-            // Ojos a 1.6 metros sobre el suelo (Y=0)
             camera.position.set(spawnPos.x, 1.6, spawnPos.z);
             
-            // Añadir luz naranja tenúe en el spawn para orientación
             const startLight = new THREE.PointLight(0xffaa00, 0.8, 10);
             startLight.position.set(spawnPos.x, 1, spawnPos.z);
             scene.add(startLight);
 
-            // 5. Crear Puerta de Salida
-            // La colocamos 4 metros "atrás" (Z negativo) del jugador
             createDoor(scene, spawnPos.x, 0, spawnPos.z - 4);
 
-            // 6. Crear El Asesino
             killer = createEntity(scene);
-            // Lo spawnamos a una distancia segura pero accesible
             killer.position.set(spawnPos.x + 5, 0, spawnPos.z + 5);
 
-            // 7. Crear Objetivo (Meta)
             const goalGeo = new THREE.BoxGeometry(1, 1, 1);
-            const goalMat = new THREE.MeshBasicMaterial({ color: 0x00ff00 }); // Verde neón
+            const goalMat = new THREE.MeshBasicMaterial({ color: 0x00ff00 });
             const goal = new THREE.Mesh(goalGeo, goalMat);
-            
-            // Colocamos la meta en el lado opuesto del laberinto
             goal.position.set(-spawnPos.x, 1, -spawnPos.z); 
             
-            // Luz de la meta
             const goalLight = new THREE.PointLight(0x00ff00, 2, 15);
             goalLight.position.copy(goal.position);
             scene.add(goalLight);
             scene.add(goal);
-            
-            // Guardamos la meta globalmente para chequear colisión en game.js
             window.goalObject = goal;
         };
 
-        // Función de actualización por frame (llamada por game.js)
         window.updateEntity = function(delta, playerPos) {
             if (!killer) return;
-
-            // --- INTERACCIÓN ---
-            // Chequeamos si miramos una puerta cada frame
             checkInteraction(window.camera);
-
-            // --- IA DEL ASESINO ---
             const dist = killer.position.distanceTo(playerPos);
-
-            // 1. Actualizar Audio (Más fuerte si está cerca)
             updateMonsterSound(dist);
-
-            // 2. Actualizar Cordura (Baja si está cerca)
             updateSanity(delta, dist < 10);
 
-            // 3. Movimiento del Asesino
-            // Si está entre 1.5 y 20 metros de distancia, persigue
             if (dist > 1.5 && dist < 20) {
-                // Calcular dirección hacia el jugador
                 const direction = new THREE.Vector3().subVectors(playerPos, killer.position).normalize();
-                // Moverse
                 killer.position.add(direction.multiplyScalar(2.5 * delta));
-                // Mirar al jugador
                 killer.lookAt(playerPos.x, killer.position.y, playerPos.z);
-                // Animación de flotación (sinusoide)
                 killer.position.y = Math.sin(Date.now() * 0.005) * 0.2;
             }
-
-            // 4. COLISIÓN CON JUGADOR (GAME OVER)
+            
             if (dist < 1.0) {
                 document.body.style.background = "red";
-                setTimeout(() => {
-                    alert("¡EL ASESINO TE ATRAPÓ!");
-                }, 100);
-                location.reload(); // Reiniciar nivel
+                setTimeout(() => alert("¡GAME OVER!"), 100);
+                location.reload();
             }
         };
 
-        // --- SONIDO DE PASOS (Intervalo) ---
-        // Usamos la variable global 'inputActive' que definimos en controls.js
         setInterval(() => {
             if (window.inputActive) {
                 playStepSound();
             }
-        }, 450); // Un paso cada 450ms
+        }, 450);
 
-        // --- VICTORIA ---
         window.levelWin = function() {
-            alert("¡HAS ESCAPADO DEL LABERINTO!");
+            alert("¡Nivel 1 Terminado!");
             window.location.href = 'level2.html';
         }
     </script>
