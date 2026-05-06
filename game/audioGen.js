@@ -1,7 +1,6 @@
 // game/audioGen.js
-
 let audioCtx;
-let gainNode; // Controlador de volumen global
+let gainNode;
 
 function initAudio() {
     if (!audioCtx) {
@@ -16,13 +15,11 @@ function initAudio() {
     }
 }
 
-// Sonido de pasos (Ruido blanco corto)
 function playStepSound() {
     if (!audioCtx) return;
-    const bufferSize = audioCtx.sampleRate * 0.1; // 0.1 segundos
+    const bufferSize = audioCtx.sampleRate * 0.1;
     const buffer = audioCtx.createBuffer(1, bufferSize, audioCtx.sampleRate);
     const data = buffer.getChannelData(0);
-
     for (let i = 0; i < bufferSize; i++) {
         data[i] = Math.random() * 2 - 1;
     }
@@ -43,15 +40,12 @@ function playStepSound() {
     noise.start();
 }
 
-// Sonido del monstruo (Tono grave y disonante)
 let monsterOsc = null;
 function updateMonsterSound(distance) {
     if (!audioCtx) return;
-    
-    // Cuanto más cerca (distancia baja), más fuerte y agudo
     const maxDist = 20;
     let volume = Math.max(0, (maxDist - distance) / maxDist); 
-    let pitch = 100 + (volume * 100); // 100Hz a 200Hz
+    let pitch = 100 + (volume * 100);
 
     if (!monsterOsc && volume > 0.01) {
         monsterOsc = audioCtx.createOscillator();
