@@ -2,7 +2,7 @@
 <html lang="es">
 <head>
     <meta charset="UTF-8">
-    <title>PSICOSIS - Menú Principal</title>
+    <title>PSICOSIS - Inicio</title>
     <link rel="stylesheet" href="css/menu.css">
 </head>
 <body>
@@ -12,57 +12,40 @@
         <p class="subtitle">El laberinto de la mente</p>
 
         <div class="settings-box">
-            <h3>Configuración</h3>
+            <h3>CONFIGURACIÓN</h3>
             
-            <!-- Control Sensibilidad -->
             <label>
                 Sensibilidad del Ratón: <span id="sens-val">50%</span>
                 <input type="range" id="sensitivity" min="1" max="100" value="50">
             </label>
 
-            <!-- Control Volumen -->
             <label>
-                Volumen del Juego: <span id="vol-val">50%</span>
+                Volumen Maestro: <span id="vol-val">50%</span>
                 <input type="range" id="volume" min="0" max="100" value="50">
             </label>
-
-            <p class="controls-info">Controles: WASD para moverse, Ratón para mirar.</p>
+            <p class="controls-info">Controles: WASD para moverse. Ratón para mirar. F para Linterna.</p>
         </div>
 
-        <button id="start-btn" class="btn-start">COMENZAR LA Pesadilla</button>
+        <button id="start-btn" class="btn-start">ENTRAR EN EL LABERINTO</button>
     </div>
 
     <script src="common.js"></script>
     <script>
-        // Lógica del Menú
         const sensInput = document.getElementById('sensitivity');
         const volInput = document.getElementById('volume');
         const sensVal = document.getElementById('sens-val');
         const volVal = document.getElementById('vol-val');
         const startBtn = document.getElementById('start-btn');
 
-        // Actualizar valores en pantalla
-        sensInput.addEventListener('input', (e) => {
-            sensVal.innerText = e.target.value + '%';
-        });
+        sensInput.addEventListener('input', (e) => sensVal.innerText = e.target.value + '%');
+        volInput.addEventListener('input', (e) => volVal.innerText = e.target.value + '%');
 
-        volInput.addEventListener('input', (e) => {
-            volVal.innerText = e.target.value + '%';
-        });
-
-        // Al dar click a COMENZAR
         startBtn.addEventListener('click', () => {
-            // 1. Crear objeto de configuración
             const currentSettings = {
-                sensitivity: parseInt(sensInput.value) / 25000, // Escalar para Three.js
-                volume: parseInt(volInput.value) / 100,
-                controls: "WASD"
+                sensitivity: parseInt(sensInput.value) / 25000, 
+                volume: parseInt(volInput.value) / 100
             };
-
-            // 2. Guardar en memoria del navegador
             saveSettings(currentSettings);
-
-            // 3. Redirigir al nivel 1
             window.location.href = 'game/level1.html';
         });
     </script>
