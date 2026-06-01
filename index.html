@@ -2,51 +2,1092 @@
 <html lang="es">
 <head>
     <meta charset="UTF-8">
-    <title>PSICOSIS - Inicio</title>
-    <link rel="stylesheet" href="css/menu.css">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>LSD Dream Simulator</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { 
+            overflow: hidden; 
+            background: #000; 
+            cursor: none; 
+            font-family: 'Courier New', monospace;
+        }
+        #canvas-container { 
+            width: 100vw; 
+            height: 100vh; 
+            position: fixed; 
+            top: 0; 
+            left: 0; 
+        }
+        #ui {
+            position: fixed;
+            top: 20px;
+            left: 20px;
+            color: rgba(255,255,255,0.7);
+            font-size: 12px;
+            z-index: 100;
+            pointer-events: none;
+            text-shadow: 0 0 10px rgba(255,255,255,0.5);
+        }
+        #dream-text {
+            position: fixed;
+            bottom: 40px;
+            left: 50%;
+            transform: translateX(-50%);
+            color: rgba(255,255,255,0.8);
+            font-size: 14px;
+            text-align: center;
+            z-index: 100;
+            pointer-events: none;
+            opacity: 0;
+            transition: opacity 2s;
+            text-shadow: 0 0 20px rgba(255,255,255,0.8);
+            max-width: 600px;
+        }
+        #crosshair {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            width: 4px;
+            height: 4px;
+            background: rgba(255,255,255,0.5);
+            border-radius: 50%;
+            transform: translate(-50%, -50%);
+            z-index: 100;
+            pointer-events: none;
+        }
+        #vignette {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            z-index: 50;
+            box-shadow: inset 0 0 150px rgba(0,0,0,0.8);
+        }
+        #transition-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: #000;
+            z-index: 200;
+            pointer-events: none;
+            opacity: 0;
+            transition: opacity 0.5s;
+        }
+    </style>
+<base target="_blank">
 </head>
 <body>
-
-    <div class="menu-container">
-        <h1>PSICOSIS</h1>
-        <p class="subtitle">El laberinto de la mente</p>
-
-        <div class="settings-box">
-            <h3>CONFIGURACIÓN</h3>
-            
-            <label>
-                Sensibilidad del Ratón: <span id="sens-val">50%</span>
-                <input type="range" id="sensitivity" min="1" max="100" value="50">
-            </label>
-
-            <label>
-                Volumen Maestro: <span id="vol-val">50%</span>
-                <input type="range" id="volume" min="0" max="100" value="50">
-            </label>
-            <p class="controls-info">Controles: WASD para moverse. Ratón para mirar. F para Linterna.</p>
-        </div>
-
-        <button id="start-btn" class="btn-start">ENTRAR EN EL LABERINTO</button>
+    <div id="canvas-container"></div>
+    <div id="ui">
+        <div>DÍA DEL SUEÑO: <span id="day">1</span></div>
+        <div>ÁREA: <span id="area">Desconocida</span></div>
+        <div>WASD - Moverse | MOUSE - Mirar | ESPACIO - Saltar</div>
+        <div>SHIFT - Correr | CLICK - Interactuar</div>
     </div>
+    <div id="dream-text"></div>
+    <div id="crosshair"></div>
+    <div id="vignette"></div>
+    <div id="transition-overlay"></div>
 
-    <script src="common.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.8.49/Tone.js"></script>
     <script>
-        const sensInput = document.getElementById('sensitivity');
-        const volInput = document.getElementById('volume');
-        const sensVal = document.getElementById('sens-val');
-        const volVal = document.getElementById('vol-val');
-        const startBtn = document.getElementById('start-btn');
+        // ============================================================
+        // LSD DREAM SIMULATOR - MOTOR DE SUEÑOS PROCEDURAL
+        // Todo generado por código: terrenos, texturas, sonidos, seres
+        // ============================================================
 
-        sensInput.addEventListener('input', (e) => sensVal.innerText = e.target.value + '%');
-        volInput.addEventListener('input', (e) => volVal.innerText = e.target.value + '%');
+        // --- UTILIDADES DE RUIDO PERLIN (Implementación propia) ---
+        class PerlinNoise {
+            constructor(seed = Math.random()) {
+                this.p = new Uint8Array(512);
+                this.perm = new Uint8Array(512);
+                this.seed = seed;
+                this.init();
+            }
 
-        startBtn.addEventListener('click', () => {
-            const currentSettings = {
-                sensitivity: parseInt(sensInput.value) / 25000, 
-                volume: parseInt(volInput.value) / 100
-            };
-            saveSettings(currentSettings);
-            window.location.href = 'game/level1.html';
+            init() {
+                const p = new Uint8Array(256);
+                for (let i = 0; i < 256; i++) p[i] = i;
+
+                // Mezclar con semilla
+                let seed = this.seed * 12345;
+                for (let i = 255; i > 0; i--) {
+                    seed = (seed * 16807 + 0) % 2147483647;
+                    const j = seed % (i + 1);
+                    [p[i], p[j]] = [p[j], p[i]];
+                }
+
+                for (let i = 0; i < 512; i++) {
+                    this.perm[i] = p[i & 255];
+                }
+            }
+
+            fade(t) { return t * t * t * (t * (t * 6 - 15) + 10); }
+            lerp(t, a, b) { return a + t * (b - a); }
+            grad(hash, x, y, z) {
+                const h = hash & 15;
+                const u = h < 8 ? x : y;
+                const v = h < 4 ? y : h === 12 || h === 14 ? x : z;
+                return ((h & 1) === 0 ? u : -u) + ((h & 2) === 0 ? v : -v);
+            }
+
+            noise(x, y, z = 0) {
+                const X = Math.floor(x) & 255;
+                const Y = Math.floor(y) & 255;
+                const Z = Math.floor(z) & 255;
+                x -= Math.floor(x);
+                y -= Math.floor(y);
+                z -= Math.floor(z);
+                const u = this.fade(x);
+                const v = this.fade(y);
+                const w = this.fade(z);
+
+                const A = this.perm[X] + Y, AA = this.perm[A] + Z, AB = this.perm[A + 1] + Z;
+                const B = this.perm[X + 1] + Y, BA = this.perm[B] + Z, BB = this.perm[B + 1] + Z;
+
+                return this.lerp(w, this.lerp(v, this.lerp(u, this.grad(this.perm[AA], x, y, z),
+                    this.grad(this.perm[BA], x - 1, y, z)),
+                    this.lerp(u, this.grad(this.perm[AB], x, y - 1, z),
+                    this.grad(this.perm[BB], x - 1, y - 1, z))),
+                    this.lerp(v, this.lerp(u, this.grad(this.perm[AA + 1], x, y, z - 1),
+                    this.grad(this.perm[BA + 1], x - 1, y, z - 1)),
+                    this.lerp(u, this.grad(this.perm[AB + 1], x, y - 1, z - 1),
+                    this.grad(this.perm[BB + 1], x - 1, y - 1, z - 1))));
+            }
+
+            fbm(x, y, z, octaves = 4, lacunarity = 2, gain = 0.5) {
+                let total = 0, frequency = 1, amplitude = 1, maxValue = 0;
+                for (let i = 0; i < octaves; i++) {
+                    total += this.noise(x * frequency, y * frequency, z * frequency) * amplitude;
+                    maxValue += amplitude;
+                    amplitude *= gain;
+                    frequency *= lacunarity;
+                }
+                return total / maxValue;
+            }
+        }
+
+        // --- GENERADOR DE TEXTURAS PROCEDURALES ---
+        class TextureGenerator {
+            constructor(seed) {
+                this.noise = new PerlinNoise(seed);
+            }
+
+            // Textura de pared onírica
+            generateWallTexture(width = 256, height = 256) {
+                const canvas = document.createElement('canvas');
+                canvas.width = width;
+                canvas.height = height;
+                const ctx = canvas.getContext('2d');
+                const imgData = ctx.createImageData(width, height);
+                const data = imgData.data;
+
+                const hue = Math.random() * 360;
+                const sat = 30 + Math.random() * 40;
+
+                for (let y = 0; y < height; y++) {
+                    for (let x = 0; x < width; x++) {
+                        const nx = x / width * 4;
+                        const ny = y / height * 4;
+                        const n = this.noise.fbm(nx, ny, 0, 5);
+                        const n2 = this.noise.fbm(nx * 2, ny * 2, 1, 3);
+
+                        const h = (hue + n * 60 + n2 * 30) % 360;
+                        const s = sat + n2 * 20;
+                        const l = 30 + n * 30 + Math.sin(y * 0.1) * 10;
+
+                        const rgb = this.hslToRgb(h / 360, s / 100, l / 100);
+                        const idx = (y * width + x) * 4;
+                        data[idx] = rgb[0];
+                        data[idx + 1] = rgb[1];
+                        data[idx + 2] = rgb[2];
+                        data[idx + 3] = 255;
+                    }
+                }
+
+                ctx.putImageData(imgData, 0, 0);
+                const texture = new THREE.CanvasTexture(canvas);
+                texture.wrapS = THREE.RepeatWrapping;
+                texture.wrapT = THREE.RepeatWrapping;
+                return texture;
+            }
+
+            // Textura de suelo onírico
+            generateFloorTexture(width = 256, height = 256) {
+                const canvas = document.createElement('canvas');
+                canvas.width = width;
+                canvas.height = height;
+                const ctx = canvas.getContext('2d');
+                const imgData = ctx.createImageData(width, height);
+                const data = imgData.data;
+
+                const hue = (Math.random() * 360 + 180) % 360;
+
+                for (let y = 0; y < height; y++) {
+                    for (let x = 0; x < width; x++) {
+                        const nx = x / width * 8;
+                        const ny = y / height * 8;
+                        const n = this.noise.fbm(nx, ny, 0, 6);
+                        const pattern = Math.sin(nx * 3 + n * 5) * Math.cos(ny * 3 + n * 3);
+
+                        const h = (hue + pattern * 40) % 360;
+                        const s = 20 + Math.abs(pattern) * 30;
+                        const l = 20 + n * 40;
+
+                        const rgb = this.hslToRgb(h / 360, s / 100, l / 100);
+                        const idx = (y * width + x) * 4;
+                        data[idx] = rgb[0];
+                        data[idx + 1] = rgb[1];
+                        data[idx + 2] = rgb[2];
+                        data[idx + 3] = 255;
+                    }
+                }
+
+                ctx.putImageData(imgData, 0, 0);
+                const texture = new THREE.CanvasTexture(canvas);
+                texture.wrapS = THREE.RepeatWrapping;
+                texture.wrapT = THREE.RepeatWrapping;
+                texture.repeat.set(4, 4);
+                return texture;
+            }
+
+            // Textura de cielo onírico
+            generateSkyTexture(width = 512, height = 512) {
+                const canvas = document.createElement('canvas');
+                canvas.width = width;
+                canvas.height = height;
+                const ctx = canvas.getContext('2d');
+                const imgData = ctx.createImageData(width, height);
+                const data = imgData.data;
+
+                const baseHue = Math.random() * 360;
+
+                for (let y = 0; y < height; y++) {
+                    for (let x = 0; x < width; x++) {
+                        const nx = x / width * 2;
+                        const ny = y / height * 2;
+                        const n = this.noise.fbm(nx, ny, 0, 4);
+
+                        const h = (baseHue + y * 0.2 + n * 50) % 360;
+                        const s = 40 + n * 30;
+                        const l = 10 + (y / height) * 30 + n * 20;
+
+                        const rgb = this.hslToRgb(h / 360, s / 100, l / 100);
+                        const idx = (y * width + x) * 4;
+                        data[idx] = rgb[0];
+                        data[idx + 1] = rgb[1];
+                        data[idx + 2] = rgb[2];
+                        data[idx + 3] = 255;
+                    }
+                }
+
+                ctx.putImageData(imgData, 0, 0);
+                return new THREE.CanvasTexture(canvas);
+            }
+
+            // Textura para seres oníricos
+            generateEntityTexture(width = 128, height = 128) {
+                const canvas = document.createElement('canvas');
+                canvas.width = width;
+                canvas.height = height;
+                const ctx = canvas.getContext('2d');
+                const imgData = ctx.createImageData(width, height);
+                const data = imgData.data;
+
+                const hue = Math.random() * 360;
+
+                for (let y = 0; y < height; y++) {
+                    for (let x = 0; x < width; x++) {
+                        const dist = Math.sqrt((x - width/2)**2 + (y - height/2)**2) / (width/2);
+                        const n = this.noise.fbm(x/width*6, y/height*6, 0, 3);
+
+                        const h = (hue + dist * 60 + n * 40) % 360;
+                        const s = 50 + n * 30;
+                        const l = (1 - dist) * 60 + n * 20;
+                        const alpha = (1 - dist) * 200 + n * 55;
+
+                        const rgb = this.hslToRgb(h / 360, s / 100, l / 100);
+                        const idx = (y * width + x) * 4;
+                        data[idx] = rgb[0];
+                        data[idx + 1] = rgb[1];
+                        data[idx + 2] = rgb[2];
+                        data[idx + 3] = Math.min(255, alpha);
+                    }
+                }
+
+                ctx.putImageData(imgData, 0, 0);
+                return new THREE.CanvasTexture(canvas);
+            }
+
+            hslToRgb(h, s, l) {
+                let r, g, b;
+                if (s === 0) {
+                    r = g = b = l;
+                } else {
+                    const hue2rgb = (p, q, t) => {
+                        if (t < 0) t += 1;
+                        if (t > 1) t -= 1;
+                        if (t < 1/6) return p + (q - p) * 6 * t;
+                        if (t < 1/2) return q;
+                        if (t < 2/3) return p + (q - p) * (2/3 - t) * 6;
+                        return p;
+                    };
+                    const q = l < 0.5 ? l * (1 + s) : l + s - l * s;
+                    const p = 2 * l - q;
+                    r = hue2rgb(p, q, h + 1/3);
+                    g = hue2rgb(p, q, h);
+                    b = hue2rgb(p, q, h - 1/3);
+                }
+                return [Math.round(r * 255), Math.round(g * 255), Math.round(b * 255)];
+            }
+        }
+
+        // --- MOTOR DE AUDIO ONÍRICO (Tone.js) ---
+        class DreamAudio {
+            constructor() {
+                this.initialized = false;
+                this.drone = null;
+                this.ambience = null;
+                this.effects = [];
+            }
+
+            async init() {
+                if (this.initialized) return;
+                await Tone.start();
+
+                // Drone base atmosférico
+                this.drone = new Tone.PolySynth(Tone.Synth, {
+                    oscillator: { type: "fatsawtooth", count: 3, spread: 30 },
+                    envelope: { attack: 2, decay: 1, sustain: 1, release: 4 }
+                }).toDestination();
+                this.drone.volume.value = -20;
+
+                // Efecto de reverberación onírica
+                this.reverb = new Tone.Reverb({ decay: 10, wet: 0.6 }).toDestination();
+                this.drone.connect(this.reverb);
+
+                // Delay espacial
+                this.delay = new Tone.FeedbackDelay("8n", 0.5).toDestination();
+                this.delay.wet.value = 0.3;
+
+                // Filtro que se mueve
+                this.filter = new Tone.AutoFilter({ frequency: 0.1, depth: 0.5 }).toDestination();
+                this.filter.start();
+
+                // Generador de ruido para textura
+                this.noise = new Tone.Noise("pink").start();
+                this.noiseFilter = new Tone.AutoFilter({ frequency: 0.05, depth: 0.8 }).toDestination();
+                this.noise.connect(this.noiseFilter);
+                this.noise.volume.value = -35;
+
+                this.initialized = true;
+                this.startDreamDrone();
+            }
+
+            startDreamDrone() {
+                const chords = [
+                    ["C2", "E2", "G2", "B2"],
+                    ["F2", "A2", "C3", "E3"],
+                    ["G2", "B2", "D3", "F#3"],
+                    ["A1", "C2", "E2", "G2"],
+                    ["D2", "F2", "A2", "C3"]
+                ];
+
+                const playChord = () => {
+                    const chord = chords[Math.floor(Math.random() * chords.length)];
+                    this.drone.triggerAttackRelease(chord, "4m");
+                    setTimeout(playChord, 8000 + Math.random() * 8000);
+                };
+                playChord();
+            }
+
+            playFootstep() {
+                if (!this.initialized) return;
+                const synth = new Tone.MembraneSynth({ volume: -25 }).toDestination();
+                synth.triggerAttackRelease("C1", "32n");
+            }
+
+            playDreamSound() {
+                if (!this.initialized) return;
+                const notes = ["C4", "E4", "G4", "B4", "D5", "F#5", "A5"];
+                const note = notes[Math.floor(Math.random() * notes.length)];
+                const synth = new Tone.AMSynth({ volume: -15 }).toDestination();
+                synth.connect(this.reverb);
+                synth.triggerAttackRelease(note, "2n");
+            }
+
+            playTransitionSound() {
+                if (!this.initialized) return;
+                const synth = new Tone.FMSynth({ volume: -10 }).toDestination();
+                synth.connect(this.reverb);
+                synth.triggerAttackRelease("C2", "1m");
+                synth.frequency.rampTo("C1", 2);
+            }
+
+            setIntensity(intensity) {
+                if (!this.initialized) return;
+                this.drone.volume.rampTo(-25 + intensity * 5, 2);
+                this.noise.volume.rampTo(-40 + intensity * 10, 2);
+            }
+        }
+
+        // --- GENERADOR DE MUNDOS ONÍRICOS ---
+        class DreamWorld {
+            constructor(scene, seed) {
+                this.scene = scene;
+                this.seed = seed;
+                this.noise = new PerlinNoise(seed);
+                this.texGen = new TextureGenerator(seed);
+                this.objects = [];
+                this.entities = [];
+                this.areaName = this.generateAreaName();
+                this.dreamIntensity = 0;
+            }
+
+            generateAreaName() {
+                const prefixes = ["Páramo", "Jardín", "Laberinto", "Catedral", "Túnel", "Torre", 
+                                  "Puente", "Isla", "Bosque", "Cueva", "Río", "Puerta", "Espejo", "Reloj"];
+                const suffixes = ["del Olvido", "de Cristal", "Sin Fin", "Dormente", "Flotante", 
+                                  "Inverso", "Mudo", "Roto", "Eterno", "Perdido", "Susurrante", "Vacío"];
+                return prefixes[Math.floor(Math.random() * prefixes.length)] + " " + 
+                       suffixes[Math.floor(Math.random() * suffixes.length)];
+            }
+
+            generate() {
+                this.clear();
+                this.generateTerrain();
+                this.generateStructures();
+                this.generateEntities();
+                this.generateSky();
+                this.generateLighting();
+            }
+
+            clear() {
+                this.objects.forEach(obj => this.scene.remove(obj));
+                this.objects = [];
+                this.entities = [];
+            }
+
+            generateTerrain() {
+                // Suelo onírico
+                const floorGeo = new THREE.PlaneGeometry(200, 200, 64, 64);
+                const posAttribute = floorGeo.attributes.position;
+
+                for (let i = 0; i < posAttribute.count; i++) {
+                    const x = posAttribute.getX(i);
+                    const y = posAttribute.getY(i);
+                    const z = this.noise.fbm(x * 0.05, y * 0.05, 0, 4) * 3;
+                    posAttribute.setZ(i, z);
+                }
+                floorGeo.computeVertexNormals();
+
+                const floorMat = new THREE.MeshStandardMaterial({
+                    map: this.texGen.generateFloorTexture(),
+                    roughness: 0.8,
+                    metalness: 0.1,
+                    side: THREE.DoubleSide
+                });
+
+                const floor = new THREE.Mesh(floorGeo, floorMat);
+                floor.rotation.x = -Math.PI / 2;
+                floor.position.y = -2;
+                this.scene.add(floor);
+                this.objects.push(floor);
+
+                // Paredes flotantes / estructuras
+                for (let i = 0; i < 15; i++) {
+                    this.createFloatingWall();
+                }
+
+                // Objetos geométricos flotantes
+                for (let i = 0; i < 20; i++) {
+                    this.createFloatingObject();
+                }
+            }
+
+            createFloatingWall() {
+                const width = 5 + Math.random() * 15;
+                const height = 3 + Math.random() * 10;
+                const geo = new THREE.BoxGeometry(width, height, 0.5);
+                const mat = new THREE.MeshStandardMaterial({
+                    map: this.texGen.generateWallTexture(),
+                    roughness: 0.6,
+                    metalness: 0.2,
+                    transparent: true,
+                    opacity: 0.7 + Math.random() * 0.3
+                });
+
+                const wall = new THREE.Mesh(geo, mat);
+                wall.position.set(
+                    (Math.random() - 0.5) * 80,
+                    Math.random() * 15 - 2,
+                    (Math.random() - 0.5) * 80
+                );
+                wall.rotation.set(
+                    Math.random() * 0.3,
+                    Math.random() * Math.PI * 2,
+                    Math.random() * 0.3
+                );
+
+                // Animación flotante
+                wall.userData = {
+                    floatSpeed: 0.2 + Math.random() * 0.5,
+                    floatOffset: Math.random() * Math.PI * 2,
+                    rotSpeed: (Math.random() - 0.5) * 0.2
+                };
+
+                this.scene.add(wall);
+                this.objects.push(wall);
+            }
+
+            createFloatingObject() {
+                const types = ['box', 'sphere', 'torus', 'cone', 'octahedron'];
+                const type = types[Math.floor(Math.random() * types.length)];
+                let geo;
+
+                switch(type) {
+                    case 'box': geo = new THREE.BoxGeometry(1, 1, 1); break;
+                    case 'sphere': geo = new THREE.SphereGeometry(0.5 + Math.random(), 16, 16); break;
+                    case 'torus': geo = new THREE.TorusGeometry(0.5, 0.2, 8, 16); break;
+                    case 'cone': geo = new THREE.ConeGeometry(0.5, 2, 8); break;
+                    case 'octahedron': geo = new THREE.OctahedronGeometry(0.7); break;
+                }
+
+                const hue = Math.random() * 360;
+                const mat = new THREE.MeshStandardMaterial({
+                    color: new THREE.Color().setHSL(hue / 360, 0.6, 0.5),
+                    emissive: new THREE.Color().setHSL((hue + 180) / 360, 0.8, 0.2),
+                    emissiveIntensity: 0.5,
+                    roughness: 0.3,
+                    metalness: 0.7,
+                    transparent: true,
+                    opacity: 0.6 + Math.random() * 0.4
+                });
+
+                const obj = new THREE.Mesh(geo, mat);
+                obj.position.set(
+                    (Math.random() - 0.5) * 60,
+                    1 + Math.random() * 8,
+                    (Math.random() - 0.5) * 60
+                );
+                obj.scale.setScalar(0.5 + Math.random() * 2);
+
+                obj.userData = {
+                    floatSpeed: 0.3 + Math.random() * 0.7,
+                    floatOffset: Math.random() * Math.PI * 2,
+                    rotSpeed: {
+                        x: (Math.random() - 0.5) * 0.5,
+                        y: (Math.random() - 0.5) * 0.5,
+                        z: (Math.random() - 0.5) * 0.5
+                    },
+                    pulseSpeed: 1 + Math.random() * 2
+                };
+
+                this.scene.add(obj);
+                this.objects.push(obj);
+            }
+
+            generateStructures() {
+                // Crear algunas "habitaciones" o zonas definidas
+                for (let i = 0; i < 3; i++) {
+                    this.createDreamRoom();
+                }
+            }
+
+            createDreamRoom() {
+                const size = 8 + Math.random() * 12;
+                const roomGroup = new THREE.Group();
+
+                // Paredes de la habitación
+                const wallMat = new THREE.MeshStandardMaterial({
+                    map: this.texGen.generateWallTexture(),
+                    side: THREE.DoubleSide,
+                    transparent: true,
+                    opacity: 0.8
+                });
+
+                // 4 paredes
+                for (let w = 0; w < 4; w++) {
+                    const wallGeo = new THREE.PlaneGeometry(size, size);
+                    const wall = new THREE.Mesh(wallGeo, wallMat);
+                    const angle = (w / 4) * Math.PI * 2;
+                    wall.position.set(Math.cos(angle) * size/2, size/2 - 2, Math.sin(angle) * size/2);
+                    wall.rotation.y = -angle + Math.PI / 2;
+                    roomGroup.add(wall);
+                }
+
+                roomGroup.position.set(
+                    (Math.random() - 0.5) * 50,
+                    0,
+                    (Math.random() - 0.5) * 50
+                );
+
+                this.scene.add(roomGroup);
+                this.objects.push(roomGroup);
+            }
+
+            generateEntities() {
+                // Seres oníricos que se mueven
+                for (let i = 0; i < 5; i++) {
+                    this.createDreamEntity();
+                }
+            }
+
+            createDreamEntity() {
+                const group = new THREE.Group();
+
+                // Cuerpo principal
+                const bodyGeo = new THREE.SphereGeometry(0.5 + Math.random() * 0.5, 16, 16);
+                const bodyMat = new THREE.MeshStandardMaterial({
+                    map: this.texGen.generateEntityTexture(),
+                    emissive: new THREE.Color().setHSL(Math.random(), 0.8, 0.3),
+                    emissiveIntensity: 0.8,
+                    transparent: true,
+                    opacity: 0.7
+                });
+                const body = new THREE.Mesh(bodyGeo, bodyMat);
+                group.add(body);
+
+                // Partículas alrededor
+                for (let j = 0; j < 5; j++) {
+                    const particleGeo = new THREE.SphereGeometry(0.1, 8, 8);
+                    const particleMat = new THREE.MeshBasicMaterial({
+                        color: new THREE.Color().setHSL(Math.random(), 1, 0.5),
+                        transparent: true,
+                        opacity: 0.6
+                    });
+                    const particle = new THREE.Mesh(particleGeo, particleMat);
+                    particle.position.set(
+                        (Math.random() - 0.5) * 2,
+                        (Math.random() - 0.5) * 2,
+                        (Math.random() - 0.5) * 2
+                    );
+                    particle.userData = {
+                        orbitRadius: 1 + Math.random(),
+                        orbitSpeed: 0.5 + Math.random(),
+                        orbitOffset: Math.random() * Math.PI * 2
+                    };
+                    group.add(particle);
+                }
+
+                group.position.set(
+                    (Math.random() - 0.5) * 40,
+                    1 + Math.random() * 5,
+                    (Math.random() - 0.5) * 40
+                );
+
+                group.userData = {
+                    moveSpeed: 0.2 + Math.random() * 0.5,
+                    moveOffset: Math.random() * Math.PI * 2,
+                    wanderRadius: 5 + Math.random() * 10,
+                    basePosition: group.position.clone()
+                };
+
+                this.scene.add(group);
+                this.objects.push(group);
+                this.entities.push(group);
+            }
+
+            generateSky() {
+                const skyGeo = new THREE.SphereGeometry(100, 32, 32);
+                const skyMat = new THREE.MeshBasicMaterial({
+                    map: this.texGen.generateSkyTexture(),
+                    side: THREE.BackSide
+                });
+                const sky = new THREE.Mesh(skyGeo, skyMat);
+                this.scene.add(sky);
+                this.objects.push(sky);
+            }
+
+            generateLighting() {
+                // Luz ambiental cambiante
+                const ambientLight = new THREE.AmbientLight(0x404040, 0.5);
+                this.scene.add(ambientLight);
+                this.objects.push(ambientLight);
+
+                // Luces puntuales de colores
+                const colors = [0xff0066, 0x00ffcc, 0xcc00ff, 0xffff00, 0x00ccff];
+                for (let i = 0; i < 5; i++) {
+                    const light = new THREE.PointLight(
+                        colors[i % colors.length],
+                        1,
+                        30
+                    );
+                    light.position.set(
+                        (Math.random() - 0.5) * 50,
+                        5 + Math.random() * 10,
+                        (Math.random() - 0.5) * 50
+                    );
+                    light.userData = {
+                        pulseSpeed: 0.5 + Math.random(),
+                        baseIntensity: 0.5 + Math.random() * 0.5
+                    };
+                    this.scene.add(light);
+                    this.objects.push(light);
+                }
+
+                // Luz direccional suave
+                const dirLight = new THREE.DirectionalLight(0xffffff, 0.3);
+                dirLight.position.set(10, 20, 10);
+                this.scene.add(dirLight);
+                this.objects.push(dirLight);
+            }
+
+            update(time) {
+                // Animar objetos flotantes
+                this.objects.forEach(obj => {
+                    if (obj.userData && obj.userData.floatSpeed) {
+                        obj.position.y += Math.sin(time * obj.userData.floatSpeed + obj.userData.floatOffset) * 0.01;
+                        if (obj.userData.rotSpeed) {
+                            if (typeof obj.userData.rotSpeed === 'object') {
+                                obj.rotation.x += obj.userData.rotSpeed.x * 0.01;
+                                obj.rotation.y += obj.userData.rotSpeed.y * 0.01;
+                                obj.rotation.z += obj.userData.rotSpeed.z * 0.01;
+                            } else {
+                                obj.rotation.y += obj.userData.rotSpeed * 0.01;
+                            }
+                        }
+                        if (obj.userData.pulseSpeed) {
+                            const scale = 1 + Math.sin(time * obj.userData.pulseSpeed) * 0.1;
+                            obj.scale.setScalar(obj.scale.x * scale / obj.scale.x);
+                        }
+                    }
+                });
+
+                // Animar entidades
+                this.entities.forEach(entity => {
+                    const data = entity.userData;
+                    entity.position.x = data.basePosition.x + Math.sin(time * data.moveSpeed + data.moveOffset) * data.wanderRadius;
+                    entity.position.z = data.basePosition.z + Math.cos(time * data.moveSpeed * 0.7 + data.moveOffset) * data.wanderRadius;
+                    entity.position.y = data.basePosition.y + Math.sin(time * data.moveSpeed * 2) * 0.5;
+                    entity.rotation.y += 0.01;
+
+                    // Animar partículas
+                    entity.children.forEach(child => {
+                        if (child.userData.orbitRadius) {
+                            const t = time * child.userData.orbitSpeed + child.userData.orbitOffset;
+                            child.position.x = Math.cos(t) * child.userData.orbitRadius;
+                            child.position.z = Math.sin(t) * child.userData.orbitRadius;
+                            child.position.y = Math.sin(t * 2) * 0.5;
+                        }
+                    });
+                });
+
+                // Animar luces
+                this.objects.forEach(obj => {
+                    if (obj instanceof THREE.PointLight && obj.userData.pulseSpeed) {
+                        obj.intensity = obj.userData.baseIntensity + Math.sin(time * obj.userData.pulseSpeed) * 0.3;
+                    }
+                });
+            }
+        }
+
+        // --- SISTEMA DE TEXTO ONÍRICO ---
+        class DreamText {
+            constructor() {
+                this.texts = [
+                    "¿Dónde estoy?",
+                    "Esto me resulta familiar...",
+                    "He estado aquí antes, en otro sueño",
+                    "Los colores no deberían ser así",
+                    "Escucho algo que no existe",
+                    "El tiempo se dobla sobre sí mismo",
+                    "Esa figura... ¿me está mirando?",
+                    "Las paredes respiran",
+                    "No recuerdo cómo llegué aquí",
+                    "Este lugar no tiene nombre",
+                    "Los números no suman",
+                    "Siento que me observan desde el cielo",
+                    "La gravedad es diferente aquí",
+                    "¿Era esto un recuerdo o una premonición?",
+                    "Los espejos muestran otra versión de mí",
+                    "El silencio tiene un color",
+                    "Cada paso me lleva más lejos",
+                    "Las sombras se mueven por su cuenta",
+                    "Este sueño se siente más real que el despertar",
+                    "Alguien dejó este mensaje para mí"
+                ];
+                this.element = document.getElementById('dream-text');
+                this.nextTextTime = 5;
+            }
+
+            update(time) {
+                if (time > this.nextTextTime) {
+                    this.showRandomText();
+                    this.nextTextTime = time + 10 + Math.random() * 20;
+                }
+            }
+
+            showRandomText() {
+                const text = this.texts[Math.floor(Math.random() * this.texts.length)];
+                this.element.textContent = text;
+                this.element.style.opacity = '1';
+                setTimeout(() => {
+                    this.element.style.opacity = '0';
+                }, 4000);
+            }
+        }
+
+        // --- CONTROLADOR DE TRANSICIONES ---
+        class TransitionManager {
+            constructor() {
+                this.overlay = document.getElementById('transition-overlay');
+                this.isTransitioning = false;
+            }
+
+            async transition(callback) {
+                if (this.isTransitioning) return;
+                this.isTransitioning = true;
+
+                // Fade out
+                this.overlay.style.opacity = '1';
+                await this.wait(500);
+
+                // Ejecutar cambio
+                callback();
+
+                // Fade in
+                await this.wait(200);
+                this.overlay.style.opacity = '0';
+                await this.wait(500);
+
+                this.isTransitioning = false;
+            }
+
+            wait(ms) {
+                return new Promise(resolve => setTimeout(resolve, ms));
+            }
+        }
+
+        // --- CONTROLADOR DE CÁMARA (FPS) ---
+        class FPSController {
+            constructor(camera, domElement) {
+                this.camera = camera;
+                this.domElement = domElement;
+                this.moveForward = false;
+                this.moveBackward = false;
+                this.moveLeft = false;
+                this.moveRight = false;
+                this.canJump = false;
+                this.isRunning = false;
+
+                this.velocity = new THREE.Vector3();
+                this.direction = new THREE.Vector3();
+
+                this.pitchObject = new THREE.Object3D();
+                this.pitchObject.add(camera);
+
+                this.yawObject = new THREE.Object3D();
+                this.yawObject.add(this.pitchObject);
+
+                this.setupControls();
+                this.lockPointer();
+            }
+
+            setupControls() {
+                document.addEventListener('keydown', (e) => this.onKeyDown(e));
+                document.addEventListener('keyup', (e) => this.onKeyUp(e));
+                document.addEventListener('mousemove', (e) => this.onMouseMove(e));
+                document.addEventListener('click', () => this.lockPointer());
+            }
+
+            lockPointer() {
+                this.domElement.requestPointerLock();
+            }
+
+            onKeyDown(event) {
+                switch(event.code) {
+                    case 'ArrowUp':
+                    case 'KeyW': this.moveForward = true; break;
+                    case 'ArrowLeft':
+                    case 'KeyA': this.moveLeft = true; break;
+                    case 'ArrowDown':
+                    case 'KeyS': this.moveBackward = true; break;
+                    case 'ArrowRight':
+                    case 'KeyD': this.moveRight = true; break;
+                    case 'Space': if (this.canJump) { this.velocity.y += 15; this.canJump = false; } break;
+                    case 'ShiftLeft': this.isRunning = true; break;
+                }
+            }
+
+            onKeyUp(event) {
+                switch(event.code) {
+                    case 'ArrowUp':
+                    case 'KeyW': this.moveForward = false; break;
+                    case 'ArrowLeft':
+                    case 'KeyA': this.moveLeft = false; break;
+                    case 'ArrowDown':
+                    case 'KeyS': this.moveBackward = false; break;
+                    case 'ArrowRight':
+                    case 'KeyD': this.moveRight = false; break;
+                    case 'ShiftLeft': this.isRunning = false; break;
+                }
+            }
+
+            onMouseMove(event) {
+                if (document.pointerLockElement === this.domElement) {
+                    const movementX = event.movementX || 0;
+                    const movementY = event.movementY || 0;
+
+                    this.yawObject.rotation.y -= movementX * 0.002;
+                    this.pitchObject.rotation.x -= movementY * 0.002;
+                    this.pitchObject.rotation.x = Math.max(-Math.PI / 2, Math.min(Math.PI / 2, this.pitchObject.rotation.x));
+                }
+            }
+
+            update(delta) {
+                const speed = this.isRunning ? 15 : 8;
+
+                this.velocity.x -= this.velocity.x * 10 * delta;
+                this.velocity.z -= this.velocity.z * 10 * delta;
+                this.velocity.y -= 9.8 * 10 * delta; // Gravedad
+
+                this.direction.z = Number(this.moveForward) - Number(this.moveBackward);
+                this.direction.x = Number(this.moveRight) - Number(this.moveLeft);
+                this.direction.normalize();
+
+                if (this.moveForward || this.moveBackward) {
+                    this.velocity.z -= this.direction.z * speed * 10 * delta;
+                }
+                if (this.moveLeft || this.moveRight) {
+                    this.velocity.x -= this.direction.x * speed * 10 * delta;
+                }
+
+                this.yawObject.translateX(-this.velocity.x * delta);
+                this.yawObject.translateZ(-this.velocity.z * delta);
+                this.yawObject.position.y += this.velocity.y * delta;
+
+                // Suelo
+                if (this.yawObject.position.y < 0) {
+                    this.velocity.y = 0;
+                    this.yawObject.position.y = 0;
+                    this.canJump = true;
+                }
+
+                // Límites del mundo
+                const limit = 90;
+                this.yawObject.position.x = Math.max(-limit, Math.min(limit, this.yawObject.position.x));
+                this.yawObject.position.z = Math.max(-limit, Math.min(limit, this.yawObject.position.z));
+            }
+
+            getPosition() {
+                return this.yawObject.position;
+            }
+
+            getObject() {
+                return this.yawObject;
+            }
+        }
+
+        // --- MOTOR PRINCIPAL ---
+        class DreamEngine {
+            constructor() {
+                this.scene = new THREE.Scene();
+                this.camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+                this.renderer = new THREE.WebGLRenderer({ antialias: true });
+                this.clock = new THREE.Clock();
+                this.day = 1;
+                this.seed = Math.random();
+
+                this.audio = new DreamAudio();
+                this.transition = new TransitionManager();
+                this.dreamText = new DreamText();
+
+                this.init();
+            }
+
+            init() {
+                // Renderer
+                this.renderer.setSize(window.innerWidth, window.innerHeight);
+                this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+                this.renderer.shadowMap.enabled = true;
+                this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+                document.getElementById('canvas-container').appendChild(this.renderer.domElement);
+
+                // Cámara FPS
+                this.controller = new FPSController(this.camera, this.renderer.domElement);
+                this.scene.add(this.controller.getObject());
+
+                // Generar mundo inicial
+                this.generateNewDream();
+
+                // Eventos
+                window.addEventListener('resize', () => this.onResize());
+                document.addEventListener('click', () => this.audio.init());
+
+                // Loop
+                this.animate();
+
+                // Transiciones automáticas cada 60-120 segundos
+                this.scheduleTransition();
+            }
+
+            generateNewDream() {
+                this.seed = Math.random();
+                this.world = new DreamWorld(this.scene, this.seed);
+                this.world.generate();
+
+                document.getElementById('day').textContent = this.day;
+                document.getElementById('area').textContent = this.world.areaName;
+
+                // Posición inicial aleatoria
+                this.controller.getObject().position.set(
+                    (Math.random() - 0.5) * 20,
+                    0,
+                    (Math.random() - 0.5) * 20
+                );
+            }
+
+            scheduleTransition() {
+                const delay = 60000 + Math.random() * 60000;
+                setTimeout(() => {
+                    this.dreamTransition();
+                }, delay);
+            }
+
+            dreamTransition() {
+                this.audio.playTransitionSound();
+                this.transition.transition(() => {
+                    this.day++;
+                    this.generateNewDream();
+                    this.dreamText.showRandomText();
+                });
+                this.scheduleTransition();
+            }
+
+            onResize() {
+                this.camera.aspect = window.innerWidth / window.innerHeight;
+                this.camera.updateProjectionMatrix();
+                this.renderer.setSize(window.innerWidth, window.innerHeight);
+            }
+
+            animate() {
+                requestAnimationFrame(() => this.animate());
+
+                const delta = this.clock.getDelta();
+                const time = this.clock.getElapsedTime();
+
+                this.controller.update(delta);
+                this.world.update(time);
+                this.dreamText.update(time);
+
+                // Efecto de distorsión sutil en la cámara
+                this.camera.fov = 75 + Math.sin(time * 0.1) * 2;
+                this.camera.updateProjectionMatrix();
+
+                this.renderer.render(this.scene, this.camera);
+            }
+        }
+
+        // Iniciar el sueño
+        window.addEventListener('load', () => {
+            new DreamEngine();
         });
     </script>
 </body>
